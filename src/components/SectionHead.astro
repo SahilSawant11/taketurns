@@ -1,0 +1,15 @@
+---
+interface Props { eyebrow: string; title: string; lede?: string; id?: string }
+const { eyebrow, title, lede, id } = Astro.props;
+---
+<div class="sh">
+  <p class="eyebrow">{eyebrow}</p>
+  <h2 id={id}>{title}</h2>
+  {lede && <p class="lede">{lede}</p>}
+  <slot />
+</div>
+
+<style>
+  .sh { display: grid; gap: 18px; margin-bottom: clamp(32px, 4vw, 56px); max-width: 860px; }
+  .sh h2 { max-width: 20ch; }
+</style>

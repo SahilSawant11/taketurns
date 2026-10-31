@@ -1,0 +1,26 @@
+---
+/**
+ * Marks content the owner still has to confirm.
+ * In `npm run dev` it shows the exact TODO; in a production build it shows a
+ * neutral "to be confirmed" label so no placeholder reads as a claim.
+ */
+interface Props { note: string; block?: boolean }
+const { note, block = false } = Astro.props;
+const dev = import.meta.env.DEV;
+const Tag = block ? 'div' : 'span';
+---
+<Tag class:list={['pending', { 'pending--block': block }]} title={dev ? note : undefined}>
+  <span class="pending__dot" aria-hidden="true"></span>
+  {dev ? <span><strong>Owner input:</strong> {note}</span> : <span>To be confirmed</span>}
+</Tag>
+
+<style>
+  .pending {
+    display: inline-flex; gap: 8px; align-items: baseline; font-family: var(--mono); font-size: 0.78rem;
+    line-height: 1.4; color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+    padding: 4px 9px; border-radius: 4px;
+  }
+  .pending strong { font-weight: 500; }
+  .pending--block { display: flex; padding: 12px 14px; }
+  .pending__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; transform: translateY(-1px); }
+</style>

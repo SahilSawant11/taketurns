@@ -1,0 +1,99 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import LayerDiagram from '../../components/LayerDiagram.astro';
+import PropertyList from '../../components/PropertyList.astro';
+import ImageSlot from '../../components/ImageSlot.astro';
+import Pending from '../../components/Pending.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import { materials, renderFor, type Material } from '../../content/materials';
+import { applications, solutions } from '../../content/catalog';
+
+export function getStaticPaths() {
+  return materials.map((m) => ({ params: { slug: m.slug }, props: { m } }));
+}
+const { m } = Astro.props as { m: Material };
+const apps = applications.filter((a) => a.materials.includes(m.slug));
+const sols = solutions.filter((s) => s.material === m.slug || s.material === 'service');
+const others = materials.filter((x) => x.slug !== m.slug);
+const closeUp = { frp: 'Close-up of glass reinforcement and laminate edge', gls: 'Close-up of glass-fused panel surface and bolted seam', ss: 'Close-up of polished stainless shell and weld' }[m.slug];
+---
+<Base title={m.name} description={`${m.name} (${m.short}): how it is built, the properties that matter, and where it is applied.`}>
+  <section class="page-hero page-hero--split">
+    <div class="wrap mh">
+      <div class="stack" style="--space:1.2rem">
+        <p class="eyebrow"><a href="/materials/">Materials</a> / {m.short}</p>
+        <h1>{m.name}</h1>
+        <p class="lede">{m.plain}</p>
+      </div>
+      <ImageSlot need={closeUp} render={renderFor(m.slug)} ratio="5 / 4" />
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="l-h">
+    <div class="wrap">
+      <SectionHead id="l-h" eyebrow="Construction" title="Layer by layer." />
+      <LayerDiagram material={m} />
+      {m.variants && (
+        <div class="variants">
+          <h3>Construction options</h3>
+          <div class="grid grid--3">
+            {m.variants.map((v) => <div class="card"><h4>{v.name}</h4><p class="muted">{v.body}</p></div>)}
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="pr-h">
+    <div class="wrap">
+      <SectionHead id="pr-h" eyebrow="Process" title="How it's made." />
+      {m.process ? (
+        <ol class="proc">{m.process.map((p) => <li><h3>{p.step}</h3><p class="muted">{p.note}</p></li>)}</ol>
+      ) : (
+        <Pending block note={`Fabrication steps for ${m.short} (materials.ts → process). Add workshop photos of each stage if available.`} />
+      )}
+    </div>
+  </section>
+
+  <section class="section" id="properties" aria-labelledby="p-h">
+    <div class="wrap">
+      <SectionHead id="p-h" eyebrow="Properties" title="What it offers, and the conditions that come with it." lede="Each property is tied to the need it answers. Figures appear only once they're backed by a test report or datasheet." />
+      <PropertyList material={m} />
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="u-h">
+    <div class="wrap">
+      <SectionHead id="u-h" eyebrow="Where it's used" title={`${m.short} in practice.`} />
+      <div class="grid grid--3">
+        {apps.map((a) => (
+          <a class="card" href={`/applications/${a.slug}/`}>
+            <h3>{a.name}</h3>
+            <p class="muted" style="margin-top:8px">{a.challenge}</p>
+          </a>
+        ))}
+      </div>
+      <h3 class="sub">Related solutions</h3>
+      <ul class="chips">
+        {sols.map((s) => <li><a href={`/solutions/#${s.slug}`}>{s.name}</a></li>)}
+      </ul>
+      <p class="alt">Comparing options? {others.map((o, i) => <>{i > 0 && ' · '}<a href={`/materials/${o.slug}/`}>{o.name} →</a></>)}</p>
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .mh { display: grid; gap: clamp(32px, 5vw, 64px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: center; }
+  .mh h1 { margin-top: 0; }
+  .proc { list-style: none; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+  .sub { margin: 48px 0 16px; }
+  .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips a { display: inline-block; padding: 8px 14px; border: 1px solid var(--line); text-decoration: none; }
+  .chips a:hover { border-color: var(--ink); }
+  .alt { margin-top: 40px; }
+  .variants { margin-top: 64px; display: grid; gap: 20px; }
+  .variants h4 { font-size: 1.1rem; margin-bottom: 8px; }
+</style>

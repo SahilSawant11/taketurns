@@ -1,0 +1,74 @@
+---
+import Base from '../../layouts/Base.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import { materials } from '../../content/materials';
+
+const rows: { k: string; v: Record<string, string> }[] = [
+  { k: 'What it is', v: { frp: 'Glass fibres in a thermoset resin, built up in layers', gls: 'A glass coating fused to steel sheet at high temperature', ss: 'A corrosion-resistant steel alloy, formed and welded' } },
+  { k: 'What carries the load', v: { frp: 'The structural glass-fibre layers', gls: 'The steel', ss: 'The stainless shell' } },
+  { k: 'What faces the contents', v: { frp: 'A resin-rich surface, or a thermoplastic liner (dual laminate)', gls: 'The inner glass coat', ss: 'A finished product-contact surface' } },
+  { k: 'How it is usually built', v: { frp: 'Wound, laid up or moulded, often as one piece', gls: 'Factory-coated panels, bolted together on site', ss: 'Rolled, welded and finished, often with a jacket and insulation' } },
+  { k: 'Often considered for', v: { frp: 'Aggressive chemicals, brine, custom shapes', gls: 'Large-volume bolted storage', ss: 'Food, beverage and hygienic process duty' } },
+  { k: 'Main limits to check', v: { frp: 'Temperature against the resin rating, abrasion, fire', gls: 'pH and temperature range, abrasion, the seams', ss: 'Chlorides, cleaning chemicals, surface finish' } },
+];
+---
+<Base title="Materials" description="How FRP, glass-lined steel and stainless steel are built, and where each one fits.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Materials</p>
+      <h1>Three material families, side by side.</h1>
+      <p class="lede">FRP, glass-lined steel and stainless each protect what they hold in a different way. Here's how each does it, and what that means when you're choosing.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="cmp" role="region" aria-label="Material comparison" tabindex="0">
+        <table>
+          <caption class="visually-hidden">FRP, glass-lined steel and stainless steel compared</caption>
+          <thead>
+            <tr>
+              <td></td>
+              {materials.map((m) => <th scope="col"><a href={`/materials/${m.slug}/`}><span class={`tag tag--${m.slug}`}>{m.short}</span> {m.name}</a></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr>
+                <th scope="row">{r.k}</th>
+                {materials.map((m) => <td>{r.v[m.slug]}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted note">A general comparison. The right choice for a specific duty depends on the medium, conditions, site and lifecycle cost.</p>
+      <div class="grid grid--3 cards">
+        {materials.map((m) => (
+          <a class="card" href={`/materials/${m.slug}/`}>
+            <span class={`tag tag--${m.slug}`}>{m.short}</span>
+            <h2>{m.name}</h2>
+            <p class="muted">{m.oneLiner}</p>
+            <span class="more">Layers, properties and evidence →</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+  <CtaBand title="Not sure which material fits?" body="Describe the duty and we'll tell you which one to look at, or which ones are worth comparing." />
+</Base>
+
+<style>
+  .cmp { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+  table { width: 100%; border-collapse: collapse; min-width: 760px; }
+  th, td { text-align: left; vertical-align: top; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child > * { border-bottom: 0; }
+  thead th { font-size: 1.05rem; }
+  thead a { text-decoration: none; display: inline-flex; gap: 10px; align-items: center; }
+  tbody th { font-weight: 500; color: var(--muted); width: 22%; font-size: 0.95rem; }
+  .note { margin-top: 14px; font-size: 0.9rem; }
+  .cards { margin-top: 56px; }
+  .cards .card { display: grid; gap: 12px; }
+  .cards h2 { font-size: var(--step-2); }
+  .more { font-weight: 550; }
+</style>

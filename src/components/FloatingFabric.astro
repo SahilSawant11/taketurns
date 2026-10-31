@@ -1,0 +1,21 @@
+---
+/**
+ * Fixed, click-through canvas for the floating woven glass cloth.
+ * Sections opt in with data-float="<pose>" (see src/scripts/fabric.ts).
+ */
+---
+<canvas class="float" aria-hidden="true"></canvas>
+
+<style>
+  .float { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 40; pointer-events: none; display: block; }
+</style>
+
+<script>
+  const canvas = document.querySelector<HTMLCanvasElement>('canvas.float')!;
+  // Dev aid: ?settle snaps the cloth to its exact pose (for checking placement).
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches || (import.meta.env.DEV && location.search.includes('settle'));
+  // Load after the hero has started so the first screen stays fast.
+  const start = () =>
+    import('../scripts/fabric').then(({ createFabric }) => createFabric(canvas, { still })).catch(() => canvas.remove());
+  'requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 1500 }) : setTimeout(start, 600);
+</script>

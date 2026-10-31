@@ -1,0 +1,141 @@
+---
+import { nav, site } from '../content/site';
+interface Props { label?: string }
+const { label = '' } = Astro.props;
+const path = Astro.url.pathname;
+const isActive = (href: string) => path.startsWith(href);
+---
+<!-- Header text flips between light and dark to match the section underneath (script below). -->
+<header class="hdr">
+  <a class="mark" href="/" aria-label={`${site.companyName} home`}>
+    <span>Shaktinova</span>
+    <span>Projects</span>
+  </a>
+  <div class="hdr__mid" aria-hidden="true">
+    <span class="hdr__progress"><i></i></span>
+    <span class="hdr__label" data-chapter-label>{label}</span>
+  </div>
+  <div class="hdr__right">
+    <a class="hdr__link label--br" href="/contact/">Start a project</a>
+    <button class="hdr__menu" aria-expanded="false" aria-controls="menu">
+      <span>Menu</span>
+      <span class="hdr__grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    </button>
+  </div>
+</header>
+
+<div id="menu" class="menu tone-dark" hidden>
+  <nav aria-label="Main">
+    <ol>
+      <li><a href="/" aria-current={path === '/' ? 'page' : undefined}><span class="menu__n">00</span>Home</a></li>
+      {nav.map((item, i) => (
+        <li>
+          <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+            <span class="menu__n">{String(i + 1).padStart(2, '0')}</span>{item.label}
+          </a>
+        </li>
+      ))}
+      <li><a href="/contact/" class="menu__cta" aria-current={isActive('/contact/') ? 'page' : undefined}><span class="menu__n">→</span>Contact</a></li>
+    </ol>
+  </nav>
+  <p class="menu__foot label">{site.tagline} · {site.yearsExperience} years · Engineering, project management, industrial solutions</p>
+</div>
+
+<style>
+  .hdr {
+    position: fixed; inset: 0 0 auto 0; z-index: 60; display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 16px; padding: 18px var(--gutter); color: #f2efe9; transition: color .3s;
+    pointer-events: none;
+  }
+  .hdr a, .hdr button { pointer-events: auto; }
+  .hdr.on-light { color: #0f0f0f; }
+  .mark { display: grid; line-height: 1; font-size: .95rem; font-weight: 600; letter-spacing: -0.01em; text-decoration: none; text-transform: lowercase; }
+  .mark span + span { opacity: .7; }
+  .hdr__mid { display: grid; gap: 8px; justify-items: start; width: min(26vw, 300px); }
+  .hdr__progress { width: 100%; height: 1px; background: color-mix(in srgb, currentColor 30%, transparent); position: relative; overflow: hidden; }
+  .hdr__progress i { position: absolute; inset: 0; background: currentColor; transform-origin: left; transform: scaleX(var(--scroll, 0)); }
+  .hdr__label { font-family: var(--mono); font-size: .68rem; font-weight: 400; letter-spacing: .06em; text-transform: uppercase; min-height: 1em; }
+  .hdr__right { justify-self: end; display: flex; align-items: center; gap: 24px; }
+  .hdr__link { font-family: var(--mono); font-size: .7rem; font-weight: 400; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+  .hdr__link:hover { text-decoration: underline; }
+  .hdr__menu {
+    display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer; color: inherit;
+    font-family: var(--mono); font-size: .7rem; font-weight: 400; letter-spacing: .04em; text-transform: uppercase; min-height: 44px; padding: 0;
+  }
+  .hdr__grid { display: grid; grid-template-columns: 4px 4px; gap: 3px; }
+  .hdr__grid i { width: 4px; height: 4px; background: currentColor; transition: transform .25s; }
+  .hdr__menu[aria-expanded='true'] .hdr__grid i:nth-child(1) { transform: translate(3.5px, 3.5px); }
+  .hdr__menu[aria-expanded='true'] .hdr__grid i:nth-child(2) { transform: translate(-3.5px, 3.5px); }
+  .hdr__menu[aria-expanded='true'] .hdr__grid i:nth-child(3) { transform: translate(3.5px, -3.5px); }
+  .hdr__menu[aria-expanded='true'] .hdr__grid i:nth-child(4) { transform: translate(-3.5px, -3.5px); }
+
+  .menu {
+    position: fixed; inset: 0; z-index: 55; display: grid; align-content: center; padding: 96px var(--gutter) 40px;
+    overflow-y: auto;
+  }
+  .menu ol { list-style: none; margin: 0; padding: 0; }
+  .menu a {
+    display: flex; align-items: baseline; gap: 20px; text-decoration: none; text-transform: uppercase;
+    font-size: clamp(2rem, 1rem + 4.2vw, 4.4rem); font-weight: 500; letter-spacing: -0.045em; line-height: 1.02;
+    color: var(--muted); transition: color .2s;
+  }
+  .menu a:hover, .menu a[aria-current='page'] { color: var(--ink); }
+  .menu .menu__cta { color: var(--accent); }
+  .menu__n { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; color: var(--muted); width: 2.4em; flex: none; }
+  .menu__foot { margin-top: 48px; }
+  .menu:not([hidden]) li { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+  .menu li:nth-child(2) { animation-delay: .03s; } .menu li:nth-child(3) { animation-delay: .06s; }
+  .menu li:nth-child(4) { animation-delay: .09s; } .menu li:nth-child(5) { animation-delay: .12s; }
+  .menu li:nth-child(6) { animation-delay: .15s; } .menu li:nth-child(7) { animation-delay: .18s; }
+  .menu li:nth-child(8) { animation-delay: .21s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(24px); } }
+
+  @media (max-width: 760px) {
+    .hdr { grid-template-columns: 1fr auto; }
+    .hdr__mid, .hdr__link { display: none; }
+  }
+</style>
+
+<script>
+  const btn = document.querySelector<HTMLButtonElement>('.hdr__menu')!;
+  const menu = document.getElementById('menu')!;
+  const setOpen = (open: boolean) => {
+    btn.setAttribute('aria-expanded', String(open));
+    btn.querySelector('span')!.textContent = open ? 'Close' : 'Menu';
+    menu.hidden = !open;
+    hdr.classList.toggle('on-light', false);
+    document.documentElement.style.overflow = open ? 'hidden' : '';
+    if (open) menu.querySelector('a')?.focus();
+  };
+  btn.addEventListener('click', () => setOpen(btn.getAttribute('aria-expanded') !== 'true'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.hidden) { setOpen(false); btn.focus(); }
+  });
+
+  // Scroll progress line + current chapter label (sections opt in with data-chapter).
+  const hdr = document.querySelector<HTMLElement>('.hdr')!;
+  const labelEl = document.querySelector<HTMLElement>('[data-chapter-label]')!;
+  // Which tone is under the header? Light sections get dark text, everything else light.
+  const DARK = '.tone-dark, .tone-green, .section--dark, .theme-dark, .ftr, .menu';
+  const toneCheck = () => {
+    if (!menu.hidden) return hdr.classList.remove('on-light');
+    const el = document.elementFromPoint(innerWidth / 2, 34);
+    const light = el ? !!el.closest('.tone-light') || !el.closest(DARK) : false;
+    hdr.classList.toggle('on-light', light);
+  };
+  const onScroll = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    hdr.style.setProperty('--scroll', String(max > 0 ? scrollY / max : 0));
+    toneCheck();
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  const chapters = document.querySelectorAll<HTMLElement>('[data-chapter]');
+  if (chapters.length) {
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && (labelEl.textContent = (e.target as HTMLElement).dataset.chapter!)),
+      { rootMargin: '-45% 0px -50% 0px' },
+    );
+    chapters.forEach((c) => io.observe(c));
+  }
+</script>

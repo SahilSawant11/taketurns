@@ -1,0 +1,60 @@
+---
+import Base from '../layouts/Base.astro';
+import ImageSlot from '../components/ImageSlot.astro';
+import Pending from '../components/Pending.astro';
+import CtaBand from '../components/CtaBand.astro';
+import { solutions } from '../content/catalog';
+import { renderFor } from '../content/materials';
+
+const groups = [
+  { key: 'frp', title: 'FRP solutions' },
+  { key: 'gls', title: 'Glass-lined steel solutions' },
+  { key: 'ss', title: 'Stainless steel solutions' },
+  { key: 'service', title: 'Engineering & project services' },
+] as const;
+---
+<Base title="Solutions" description="FRP, dual-laminate, thermoplastic, glass-lined steel and stainless steel solutions, plus engineering and project services.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Solutions</p>
+      <h1>Product families and engineered systems.</h1>
+      <p class="lede">Grouped by material, so you can go from a duty to the relevant product family. Each one is engineered by Shaktinova and built by a qualified manufacturing partner.</p>
+      {solutions.some((s) => !s.confirmed) && (
+        <div style="margin-top:24px"><Pending note="replace placeholder families in src/content/catalog.ts with the confirmed list, then set confirmed: true" /></div>
+      )}
+    </div>
+  </section>
+
+  {groups.map((g) => {
+    const items = solutions.filter((s) => s.material === g.key);
+    return items.length > 0 && (
+      <section class="section" aria-labelledby={`g-${g.key}`}>
+        <div class="wrap">
+          <h2 id={`g-${g.key}`} class="gh">{g.title}</h2>
+          <div class="grid grid--3">
+            {items.map((s) => (
+              <article class="sol" id={s.slug}>
+                <ImageSlot need={`${s.name}: product or installation photo`} render={renderFor(s.slug)} ratio="3 / 2" />
+                <div class="sol__body">
+                  <h3>{s.name}</h3>
+                  <p class="muted">{s.summary}</p>
+                  {!s.confirmed && <Pending note="confirm this family" />}
+                  <a href={`/contact/?solution=${s.slug}`}>Ask about this →</a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  })}
+
+  <CtaBand />
+</Base>
+
+<style>
+  .gh { font-size: var(--step-2); margin-bottom: 28px; }
+  .sol { display: grid; gap: 16px; align-content: start; scroll-margin-top: 96px; }
+  .sol__body { display: grid; gap: 10px; justify-items: start; }
+  .sol__body a { font-weight: 550; }
+</style>

@@ -1,0 +1,127 @@
+---
+import Base from '../layouts/Base.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Pending from '../components/Pending.astro';
+import CtaBand from '../components/CtaBand.astro';
+import { site, services } from '../content/site';
+
+// From the Shaktinova company profile ("Key strengths").
+const strengths = [
+  `${site.yearsExperience} years of engineering expertise`,
+  'Qualified manufacturing partner network',
+  'Design, cost engineering & technical support',
+  'Quality planning & documentation',
+  'End-to-end project coordination',
+  'Focus on optimised, value-driven solutions',
+  'Asset-light & vendor-neutral approach',
+  'Project management',
+];
+---
+<Base title="About" description="Shaktinova Projects: an engineering and project company delivering FRP, glass-lined steel and stainless solutions through qualified manufacturing partners.">
+  <section class="page-hero page-hero--split">
+    <div class="wrap ab">
+      <div class="stack" style="--space:1.2rem">
+        <p class="eyebrow">About · {site.tagline}</p>
+        <h1>Engineering first. Manufacturing through the right partner.</h1>
+        <p class="lede">
+          Shaktinova Projects is an engineering and project company. For more than {site.yearsExperience.replace('+', '')} years we have
+          combined engineering expertise with a network of qualified manufacturers to deliver dependable industrial
+          equipment across sectors.
+        </p>
+      </div>
+      <figure class="vid">
+        <video controls preload="metadata" playsinline src="/video/shaktinova-profile.mp4#t=12"></video>
+        <figcaption class="muted">Company profile · 1:25 · no audio</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="m-h">
+    <div class="wrap two">
+      <div>
+        <SectionHead id="m-h" eyebrow="Our model" title="Asset-light, so the advice stays neutral." />
+      </div>
+      <div class="stack" style="--space:1.2rem">
+        <p>
+          We don't own a factory. We engineer the solution and choose the materials, then select the qualified
+          manufacturing partner best suited to build it. Our job is to oversee that work for quality and schedule
+          until it's delivered.
+        </p>
+        <p>
+          Because we aren't tied to any one manufacturer, the recommendation follows the duty: FRP, dual laminate,
+          thermoplastic, glass-lined steel or stainless, whichever fits the medium, the site and the budget.
+        </p>
+        <p class="muted">
+          We work with integrity, quality, collaboration and continuous improvement, and we aim to build lasting
+          partnerships with clients and manufacturers alike.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="s-h">
+    <div class="wrap">
+      <SectionHead id="s-h" eyebrow="Services" title="What we do on every project." />
+      <ol class="svc">
+        {services.map((s, i) => (
+          <li>
+            <span class="mono svc__n">{String(i + 1).padStart(2, '0')}</span>
+            <h3>{s.name}</h3>
+            <p class="muted">{s.body}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="k-h">
+    <div class="wrap two">
+      <SectionHead id="k-h" eyebrow="Key strengths" title="One stop, from concept engineering to final execution." />
+      <ul class="ticks">
+        {strengths.map((s) => <li>{s}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="p-h">
+    <div class="wrap two">
+      <SectionHead id="p-h" eyebrow="People" title="Leadership." />
+      <div class="stack" style="--space:1rem">
+        <div class="person">
+          <p class="person__name">{site.founder.name}</p>
+          <p class="muted">{site.founder.role}, {site.companyName}</p>
+        </div>
+        <Pending note="founder bio + photo, key team members, partner qualifications and certificates" />
+      </div>
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .ab { display: grid; gap: clamp(32px, 5vw, 64px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: center; }
+  .ab h1 { margin-top: 0; max-width: 15ch; }
+  .vid { margin: 0; display: grid; gap: 10px; }
+  .vid video { width: 100%; aspect-ratio: 848 / 478; border-radius: var(--radius); background: #0c0f12; display: block; }
+  .vid figcaption { font-size: .85rem; }
+  .two { display: grid; gap: 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: start; }
+  .svc { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0 28px; }
+  .svc li { display: grid; gap: 10px; align-content: start; padding: 24px 0; border-top: 1px solid var(--ink); }
+  .svc__n { color: var(--accent); }
+  .ticks { list-style: none; display: grid; }
+  .ticks li { padding: 14px 0 14px 32px; border-top: 1px solid var(--line); position: relative; font-size: 1.08rem; }
+  .ticks li::before { content: '→'; position: absolute; left: 0; color: var(--accent); }
+  .person__name { font-size: var(--step-2); font-weight: 600; letter-spacing: -0.02em; }
+</style>
+
+<script>
+  // The #t=12 fragment shows the title slide as the preview; play from the start.
+  const v = document.querySelector<HTMLVideoElement>('.vid video');
+  let started = false;
+  v?.addEventListener('play', () => {
+    if (started) return;
+    started = true;
+    v.currentTime = 0;
+  });
+</script>

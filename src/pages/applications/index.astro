@@ -1,0 +1,47 @@
+---
+import Base from '../../layouts/Base.astro';
+import ImageSlot from '../../components/ImageSlot.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import { applications } from '../../content/catalog';
+import { renderFor } from '../../content/materials';
+---
+<Base title="Applications" description="Industries and use cases for FRP, glass-lined steel and stainless steel.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Applications</p>
+      <h1>Find your industry, then the material that suits it.</h1>
+      <p class="lede">Each sector has its own conditions. These pages set out what usually drives the choice of material.</p>
+    </div>
+  </section>
+  <section class="section" style="padding-top:0">
+    <div class="wrap list">
+      {applications.map((a, i) => (
+        <a class="row" href={`/applications/${a.slug}/`}>
+          <span class="row__n mono">{String(i + 1).padStart(2, '0')}</span>
+          <div class="row__txt">
+            <h2>{a.name}</h2>
+            <p class="muted">{a.challenge}</p>
+            <div class="row__tags">{a.materials.map((m) => <span class={`tag tag--${m}`}>{m.toUpperCase()}</span>)}</div>
+          </div>
+          <ImageSlot need={a.imageNeed} render={renderFor(a.slug)} ratio="16 / 10" class="row__img" />
+        </a>
+      ))}
+    </div>
+  </section>
+  <CtaBand />
+</Base>
+
+<style>
+  .list { display: grid; }
+  .row { display: grid; grid-template-columns: 48px 1fr minmax(0, 300px); gap: 24px; align-items: center; padding: 28px 0; border-top: 1px solid var(--line); text-decoration: none; }
+  .row:last-child { border-bottom: 1px solid var(--line); }
+  .row h2 { font-size: var(--step-2); }
+  .row__txt { display: grid; gap: 10px; }
+  .row__tags { display: flex; gap: 6px; }
+  .row__n { color: var(--muted); align-self: start; padding-top: 8px; }
+  .row:hover h2 { text-decoration: underline; text-underline-offset: .15em; }
+  @media (max-width: 760px) {
+    .row { grid-template-columns: 1fr; gap: 14px; }
+    .row__n { display: none; }
+  }
+</style>

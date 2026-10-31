@@ -1,0 +1,27 @@
+---
+/** Lenis smooth scrolling for the whole site; off for reduced motion. */
+---
+<script>
+  import Lenis from 'lenis';
+
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, anchors: true });
+    (window as unknown as { lenis: Lenis }).lenis = lenis;
+    const raf = (t: number) => {
+      lenis.raf(t);
+      requestAnimationFrame(raf);
+    };
+    requestAnimationFrame(raf);
+    // Pause while the full-screen menu locks scrolling.
+    new MutationObserver(() => {
+      document.documentElement.style.overflow === 'hidden' ? lenis.stop() : lenis.start();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+  }
+</script>
+
+<style is:global>
+  html.lenis, html.lenis body { height: auto; }
+  .lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+  .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+  .lenis.lenis-smooth iframe { pointer-events: none; }
+</style>

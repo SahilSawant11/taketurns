@@ -1,0 +1,135 @@
+---
+import type { Material } from '../content/materials';
+import Pending from './Pending.astro';
+
+interface Props { material: Material }
+const { material } = Astro.props;
+const uid = `ld-${material.slug}`;
+const layers = material.layers.map(({ id, weight, tone }) => ({ id, weight, tone }));
+---
+<div class="ld" data-ld data-layers={JSON.stringify(layers)}>
+  <div class="ld__visual">
+    <div class="ld__stage">
+      <canvas class="ld__canvas" aria-hidden="true"></canvas>
+      <p class="label ld__axis ld__axis--in">← Inside · contents</p>
+      <p class="label ld__axis ld__axis--out">Outside · environment →</p>
+      <button type="button" class="label label--br ld__explode" aria-pressed="false">Separate layers</button>
+    </div>
+    <ol class="ld__list" aria-label={`${material.name} layers, inside to outside`}>
+      {material.layers.map((l, i) => (
+        <li>
+          <button type="button" class="ld__layer" aria-pressed={i === 0 ? 'true' : 'false'} aria-controls={`${uid}-${l.id}`}>
+            <span class="ld__n">{String(i + 1).padStart(2, '0')}</span>
+            <span class="ld__sw" style={`background:${l.tone}`} aria-hidden="true"></span>
+            <span class="ld__name">{l.name}</span>
+            <span class="ld__role">{l.role}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  </div>
+
+  <div class="ld__panels">
+    {material.layers.map((l, i) => (
+      <div class="ld__panel" id={`${uid}-${l.id}`} hidden={i !== 0}>
+        <p class="label">Layer {String(i + 1).padStart(2, '0')} / {String(material.layers.length).padStart(2, '0')} · {l.role}</p>
+        <h3>{l.name}</h3>
+        <p class="ld__detail">{l.detail}</p>
+        <dl class="ld__spec">
+          <dt class="label">Specification</dt>
+          <dd>{l.spec ?? <Pending note={`confirmed spec for ${material.short} “${l.name}”`} />}</dd>
+        </dl>
+      </div>
+    ))}
+    <p class="ld__caption">{material.diagramCaption}</p>
+  </div>
+</div>
+
+<style>
+  .ld { display: grid; gap: clamp(28px, 4vw, 72px); grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .ld { grid-template-columns: 1fr; } }
+
+  .ld__visual { display: grid; gap: 0; }
+  .ld__stage { position: relative; aspect-ratio: 4 / 3; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .ld__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .ld__axis { position: absolute; top: 14px; margin: 0; }
+  .ld__axis--in { left: 0; }
+  .ld__axis--out { right: 0; }
+  .ld__explode { position: absolute; left: 0; bottom: 14px; background: none; border: 0; padding: 0; min-height: 36px; cursor: pointer; color: var(--ink); }
+  .ld__explode:hover, .ld__explode[aria-pressed='true'] { color: var(--accent); }
+
+  .ld__list { list-style: none; margin: 0; padding: 0; }
+  .ld__layer {
+    width: 100%; display: grid; grid-template-columns: 2.4rem 12px 1fr auto; gap: 14px; align-items: center;
+    padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer;
+    text-align: left; color: var(--muted); transition: color .2s;
+  }
+  .ld__layer:hover, .ld__layer[aria-pressed='true'] { color: var(--ink); }
+  .ld__n { font-family: var(--mono); font-size: .7rem; }
+  .ld__layer[aria-pressed='true'] .ld__n { color: var(--accent); }
+  .ld__sw { width: 12px; height: 12px; }
+  .ld__name { font-size: 1.02rem; font-weight: 500; }
+  .ld__role { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  @media (max-width: 560px) { .ld__role { display: none; } .ld__layer { grid-template-columns: 2.2rem 12px 1fr; } }
+
+  .ld__panels { display: grid; gap: 24px; padding-top: 8px; }
+  .ld__panel { display: grid; gap: 14px; max-width: 48ch; }
+  .ld__panel h3 { font-size: var(--step-3); text-transform: uppercase; letter-spacing: -0.045em; line-height: .95; }
+  .ld__detail { color: var(--ink-2); font-size: 1.05rem; }
+  .ld__spec { margin: 8px 0 0; display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .ld__spec dd { margin: 0; }
+  .ld__caption { font-size: .88rem; color: var(--muted); padding-top: 14px; border-top: 1px solid var(--line); max-width: 48ch; }
+</style>
+
+<script>
+  type View = { select(i: number): void; explode(on: boolean): void };
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll<HTMLElement>('[data-ld]').forEach((root) => {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.ld__layer')];
+    const explodeBtn = root.querySelector<HTMLButtonElement>('.ld__explode')!;
+    let view: View | null = null;
+    let selected = 0;
+    let exploded = false;
+
+    const select = (i: number) => {
+      selected = i;
+      buttons.forEach((b, n) => {
+        b.setAttribute('aria-pressed', String(n === i));
+        document.getElementById(b.getAttribute('aria-controls')!)!.hidden = n !== i;
+      });
+      view?.select(i);
+    };
+    buttons.forEach((b, i) => {
+      b.addEventListener('click', () => select(i));
+      b.addEventListener('keydown', (e) => {
+        const d = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        const n = (i + d + buttons.length) % buttons.length;
+        buttons[n].focus();
+        select(n);
+      });
+    });
+    explodeBtn.addEventListener('click', () => {
+      exploded = !exploded;
+      explodeBtn.setAttribute('aria-pressed', String(exploded));
+      explodeBtn.textContent = exploded ? 'Join layers' : 'Separate layers';
+      view?.explode(exploded);
+    });
+
+    // Start the 3D view when the diagram first becomes visible (tabs hide it until then).
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting || view) return;
+      io.disconnect();
+      import('../scripts/sectionView')
+        .then(({ createSectionView }) => {
+          view = createSectionView(root.querySelector('canvas')!, JSON.parse(root.dataset.layers!), still);
+          view.select(selected);
+          view.explode(exploded);
+        })
+        .catch(() => root.querySelector('.ld__stage')!.setAttribute('hidden', ''));
+    });
+    io.observe(root);
+  });
+</script>

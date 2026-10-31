@@ -1,0 +1,51 @@
+---
+/**
+ * Dev-only tool pages. /dev/render renders the studio stills and, if
+ * ?save=<port> is given, POSTs each JPEG to a local receiver that writes them
+ * to public/renders/. Not generated in production builds.
+ */
+export function getStaticPaths() {
+  return import.meta.env.DEV ? [{ params: { tool: 'render' } }] : [];
+}
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Render stills</title>
+    <style is:global>
+      body { margin: 0; background: #0d0d0d; color: #ddd; font: 13px/1.4 ui-monospace, monospace; padding: 16px; }
+      #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+      figure { margin: 0; } img { width: 100%; display: block; } canvas { display: none; }
+    </style>
+  </head>
+  <body>
+    <p id="status">Rendering…</p>
+    <canvas width="1600" height="1200"></canvas>
+    <div id="grid"></div>
+    <script>
+      import { SHOTS, renderShot } from '../../scripts/studio';
+      const canvas = document.querySelector('canvas')!;
+      const grid = document.getElementById('grid')!;
+      const status = document.getElementById('status')!;
+      const port = new URLSearchParams(location.search).get('save');
+      const only = new URLSearchParams(location.search).get('only');
+      (async () => {
+        let saved = 0;
+        for (const shot of SHOTS.filter((s) => !only || s.name === only)) {
+          renderShot(canvas, shot);
+          const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), 'image/jpeg', 0.86));
+          const fig = document.createElement('figure');
+          fig.innerHTML = `<img src="${URL.createObjectURL(blob)}" alt=""><figcaption>${shot.name}</figcaption>`;
+          grid.append(fig);
+          if (port) {
+            const res = await fetch(`http://localhost:${port}/save?name=${shot.name}`, { method: 'POST', body: blob });
+            if (res.ok) saved++;
+          }
+        }
+        status.textContent = `Done. ${port ? `${saved} saved.` : 'Preview only.'}`;
+      })();
+    </script>
+  </body>
+</html>

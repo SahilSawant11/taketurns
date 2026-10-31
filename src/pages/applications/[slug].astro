@@ -1,0 +1,78 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import ImageSlot from '../../components/ImageSlot.astro';
+import Pending from '../../components/Pending.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import { applications, projects, solutions, type Application } from '../../content/catalog';
+import { getMaterial, renderFor } from '../../content/materials';
+
+export function getStaticPaths() {
+  return applications.map((a) => ({ params: { slug: a.slug }, props: { a } }));
+}
+const { a } = Astro.props as { a: Application };
+const mats = a.materials.map((s) => getMaterial(s)!);
+const related = projects.filter((p) => a.materials.includes(p.material) && p.sector === a.name);
+const sols = solutions.filter((s) => s.material === 'service' || (a.materials as string[]).includes(s.material));
+---
+<Base title={a.name} description={`Material solutions for ${a.name.toLowerCase()}: conditions, considerations and relevant solutions.`}>
+  <section class="page-hero page-hero--split">
+    <div class="wrap ah">
+      <div class="stack" style="--space:1.2rem">
+        <p class="eyebrow"><a href="/applications/">Applications</a> / {a.name}</p>
+        <h1>{a.name}</h1>
+        <p class="lede">{a.challenge}</p>
+        {!a.confirmed && <Pending note="confirm this sector is served and add sector-specific detail" />}
+      </div>
+      <ImageSlot need={a.imageNeed} render={renderFor(a.slug)} ratio="4 / 3" />
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="c-h">
+    <div class="wrap two">
+      <div>
+        <SectionHead id="c-h" eyebrow="What to define" title="The questions that shape the choice." />
+        <ul class="ticks">{a.considerations.map((c) => <li>{c}</li>)}</ul>
+      </div>
+      <div class="stack" style="--space:16px">
+        <p class="eyebrow">Materials to consider</p>
+        {mats.map((m) => (
+          <a class="card mc" href={`/materials/${m.slug}/`} style={`--accent:${m.accent}`}>
+            <span class={`tag tag--${m.slug}`}>{m.short}</span>
+            <h3>{m.name}</h3>
+            <p class="muted">{m.oneLiner}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="r-h">
+    <div class="wrap">
+      <SectionHead id="r-h" eyebrow="Related" title="Solutions and projects." />
+      <ul class="chips">{sols.map((s) => <li><a href={`/solutions/#${s.slug}`}>{s.name}</a></li>)}</ul>
+      <div style="margin-top:32px">
+        {related.length ? (
+          <ul class="grid grid--3" style="list-style:none">{related.map((p) => <li class="card"><h3>{p.title}</h3><p class="muted">{p.location}</p></li>)}</ul>
+        ) : (
+          <Pending block note={`approved case study for ${a.name}`} />
+        )}
+      </div>
+    </div>
+  </section>
+
+  <CtaBand title={`Working on a ${a.name.toLowerCase()} project?`} />
+</Base>
+
+<style>
+  .ah { display: grid; gap: clamp(32px, 5vw, 64px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: center; }
+  .ah h1 { margin-top: 0; }
+  .two { display: grid; gap: 48px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+  .ticks { list-style: none; display: grid; gap: 0; }
+  .ticks li { padding: 14px 0 14px 32px; border-top: 1px solid var(--line); position: relative; font-size: 1.1rem; }
+  .ticks li::before { content: '→'; position: absolute; left: 0; color: var(--muted); }
+  .mc { display: grid; gap: 8px; justify-items: start; border-left: 3px solid var(--accent); }
+  .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips a { display: inline-block; padding: 8px 14px; border: 1px solid var(--line); text-decoration: none; }
+  .chips a:hover { border-color: var(--ink); }
+</style>

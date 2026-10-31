@@ -1,0 +1,33 @@
+---
+import type { Material } from '../content/materials';
+import Pending from './Pending.astro';
+interface Props { material: Material }
+const { material } = Astro.props;
+---
+<ul class="props" style={`--accent:${material.accent}`}>
+  {material.properties.map((p) => (
+    <li class="prop">
+      <div class="prop__head">
+        <h3>{p.name}</h3>
+        <p class="prop__need"><span class="mono">For</span> {p.need}</p>
+      </div>
+      <p>{p.implication}</p>
+      <div class="prop__ev">
+        {p.evidence ? (
+          <p class="mono">{p.evidence.claim} <span class="muted">({p.evidence.source})</span></p>
+        ) : (
+          <Pending note={`approved ${material.short} “${p.name}” figure + source document`} />
+        )}
+      </div>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .props { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); border-top: 2px solid var(--accent); }
+  .prop { display: grid; gap: 14px; align-content: start; padding: 24px 24px 28px 0; border-bottom: 1px solid var(--line); }
+  .prop__head { display: grid; gap: 6px; }
+  .prop__need { font-size: 0.9rem; color: var(--muted); }
+  .prop__need .mono { text-transform: uppercase; font-size: 0.7rem; letter-spacing: .08em; color: var(--accent); margin-right: 4px; }
+  .prop__ev { margin-top: 4px; }
+</style>

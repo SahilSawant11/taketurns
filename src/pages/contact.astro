@@ -1,0 +1,52 @@
+---
+import Base from '../layouts/Base.astro';
+import InquiryForm from '../components/InquiryForm.astro';
+import Pending from '../components/Pending.astro';
+import { site } from '../content/site';
+const { email, phone, whatsapp } = site.contact;
+---
+<Base title="Project inquiry" description="Send Shaktinova Projects a project inquiry or request technical information.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Contact</p>
+      <h1>Start a project inquiry.</h1>
+      <p class="lede">Five short steps. The more you can tell us about the duty, the more useful our first reply will be.</p>
+    </div>
+  </section>
+  <section class="section" style="padding-top:0">
+    <div class="wrap layout">
+      <InquiryForm />
+      <aside class="side stack" style="--space:1.4rem" aria-label="Other ways to reach us">
+        <div class="stack" style="--space:.6rem">
+          <h2>What helps most</h2>
+          <ul class="muted">
+            <li>Medium and concentration</li>
+            <li>Temperature and pressure</li>
+            <li>Capacity or dimensions</li>
+            <li>Site location and conditions</li>
+            <li>Drawings or a client spec</li>
+          </ul>
+        </div>
+        <div class="stack" style="--space:.6rem">
+          <h2>Prefer to talk?</h2>
+          {email || phone || whatsapp ? (
+            <>
+              {email && <p><a href={`mailto:${email}`}>{email}</a></p>}
+              {phone && <p><a href={`tel:${phone.replace(/\s/g, '')}`}>{phone}</a></p>}
+              {whatsapp && <p><a class="btn btn--ghost" href={`https://wa.me/${whatsapp}`} rel="noopener">Message on WhatsApp</a></p>}
+            </>
+          ) : (
+            <Pending note="email / phone / WhatsApp in src/content/site.ts" />
+          )}
+        </div>
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .layout { display: grid; gap: 40px; grid-template-columns: minmax(0, 1fr) 280px; align-items: start; }
+  .side h2 { font-size: 1.05rem; }
+  .side ul { padding-left: 18px; display: grid; gap: 4px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+</style>

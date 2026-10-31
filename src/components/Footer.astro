@@ -1,0 +1,57 @@
+---
+import { site, nav } from '../content/site';
+import Pending from './Pending.astro';
+const { email, phone, whatsapp, address } = site.contact;
+const hasContact = email || phone || whatsapp || address;
+---
+<footer class="ftr tone-dark">
+  <div class="wrap ftr__grid">
+    <p class="ftr__line">FRP, glass-lined steel and stainless solutions, engineered and delivered through qualified manufacturing partners.</p>
+    <nav aria-label="Footer">
+      <p class="label">Explore</p>
+      <ul>
+        {nav.map((i) => <li><a href={i.href}>{i.label}</a></li>)}
+        <li><a href="/contact/">Contact</a></li>
+      </ul>
+    </nav>
+    <div>
+      <p class="label">Contact</p>
+      <div class="stack" style="--space:.5rem">
+        {hasContact ? (
+          <>
+            {email && <p><a href={`mailto:${email}`}>{email}</a></p>}
+            {phone && <p><a href={`tel:${phone.replace(/\s/g, '')}`}>{phone}</a></p>}
+            {whatsapp && <p><a href={`https://wa.me/${whatsapp}`} rel="noopener">WhatsApp</a></p>}
+            {address && <p class="muted">{address}</p>}
+          </>
+        ) : (
+          <Pending note="email / phone / WhatsApp / address in src/content/site.ts" />
+        )}
+        <p><a href="/contact/">Project inquiry form →</a></p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="ftr__mark" aria-hidden="true">Shaktinova</p>
+  </div>
+  <div class="wrap ftr__base">
+    <p class="label">© {new Date().getFullYear()} {site.companyName}</p>
+    <p class="label">{site.tagline}</p>
+  </div>
+</footer>
+
+<style>
+  .ftr { padding-top: clamp(64px, 8vw, 120px); overflow: hidden; border-top: 1px solid var(--line); }
+  .ftr__grid { display: grid; gap: 40px; grid-template-columns: 2fr 1fr 1fr; padding-bottom: 48px; }
+  .ftr__line { font-size: var(--step-1); max-width: 30ch; color: var(--ink-2); }
+  .ftr .label { margin-bottom: 14px; }
+  .ftr ul { list-style: none; display: grid; gap: 6px; }
+  .ftr ul a { text-decoration: none; }
+  .ftr ul a:hover { color: var(--accent); }
+  .ftr__mark {
+    font-size: clamp(2.6rem, 13.6vw, 16rem); font-weight: 500; text-transform: uppercase;
+    letter-spacing: -0.05em; line-height: .8; margin: 0 0 -0.08em; white-space: nowrap; color: var(--ink);
+  }
+  .ftr__base { display: flex; justify-content: space-between; gap: 16px; padding-block: 18px; border-top: 1px solid var(--line); }
+  @media (max-width: 760px) { .ftr__grid { grid-template-columns: 1fr 1fr; } .ftr__line { grid-column: 1 / -1; } }
+</style>

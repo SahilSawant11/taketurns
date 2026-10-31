@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro';
+import Pending from '../components/Pending.astro';
+import CtaBand from '../components/CtaBand.astro';
+import { resources, faqs } from '../content/catalog';
+---
+<Base title="Resources" description="Brochures, datasheets and answers to common questions about FRP, glass-lined steel and stainless solutions.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Resources</p>
+      <h1>Documents and answers.</h1>
+      <p class="lede">Technical documents for evaluating a solution, and plain answers to the questions buyers ask most.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0" aria-labelledby="d-h">
+    <div class="wrap">
+      <h2 id="d-h" class="h">Downloads</h2>
+      {resources.length ? (
+        <ul class="dl">
+          {resources.map((r) => (
+            <li><a href={r.file} download><span class="tag">{r.kind}</span><span>{r.title}</span><span class="muted mono">{r.size ?? 'PDF'} ↓</span></a></li>
+          ))}
+        </ul>
+      ) : (
+        <div class="stack" style="--space:1rem">
+          <p class="muted">Brochures and datasheets will be listed here once they're published. You can request technical information through the inquiry form.</p>
+          <Pending note="put PDFs in /public/downloads and list them in src/content/catalog.ts (resources)" />
+          <p><a class="btn btn--ghost" href="/contact/?type=technical">Request technical information</a></p>
+        </div>
+      )}
+    </div>
+  </section>
+
+  <section class="section section--tint" aria-labelledby="f-h">
+    <div class="wrap faq">
+      <h2 id="f-h" class="h">Common questions</h2>
+      <div>
+        {faqs.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+  <CtaBand />
+</Base>
+
+<style>
+  .h { font-size: var(--step-2); margin-bottom: 24px; }
+  .dl { list-style: none; display: grid; }
+  .dl a { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); text-decoration: none; }
+  .faq { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+  .faq > div { grid-column: span 2; }
+  @media (max-width: 760px) { .faq > div { grid-column: auto; } }
+  details { border-top: 1px solid var(--line); }
+  details:last-child { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; padding: 18px 32px 18px 0; font-weight: 550; font-size: 1.08rem; list-style: none; position: relative; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; position: absolute; right: 4px; top: 14px; font-size: 1.4rem; font-weight: 400; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { padding: 0 32px 20px 0; color: var(--ink-2); max-width: 68ch; }
+</style>

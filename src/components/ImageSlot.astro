@@ -1,0 +1,53 @@
+---
+/**
+ * Image slot, in order of preference:
+ *  - `src`: a real, approved photo.
+ *  - `render`: a 3D illustration from public/renders/, tagged as such.
+ *  - neither: a quiet framed placeholder.
+ * `need` describes the photo that should eventually replace it (alt text, and
+ * shown as an owner note in dev).
+ */
+interface Props {
+  need: string;
+  src?: string;
+  alt?: string;
+  render?: string;
+  ratio?: string;
+  class?: string;
+}
+const { need, src, alt, render, ratio = '4 / 3', class: cls } = Astro.props;
+const dev = import.meta.env.DEV;
+const img = src ?? (render ? `/renders/${render}.jpg` : undefined);
+---
+<figure class:list={['slot', cls]} style={`aspect-ratio:${ratio}`}>
+  {img ? (
+    <img src={img} alt={alt ?? (src ? need : `3D illustration: ${need}`)} loading="lazy" decoding="async" />
+  ) : (
+    <span class="slot__empty" aria-hidden="true"></span>
+  )}
+  {!src && (
+    <figcaption>
+      <span class="label">{render ? '3D illustration' : 'Image to come'}</span>
+      {dev && <span class="slot__need">Replace with: {need}</span>}
+    </figcaption>
+  )}
+</figure>
+
+<style>
+  .slot { position: relative; width: 100%; margin: 0; overflow: hidden; background: #0d0d0d; }
+  .slot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .8s cubic-bezier(.2,.7,.2,1); }
+  :global(a:hover) .slot img { transform: scale(1.03); }
+  .slot__empty {
+    position: absolute; inset: 14px;
+    background:
+      linear-gradient(var(--line), var(--line)) top left / 14px 1px no-repeat,
+      linear-gradient(var(--line), var(--line)) top left / 1px 14px no-repeat,
+      linear-gradient(var(--line), var(--line)) bottom right / 14px 1px no-repeat,
+      linear-gradient(var(--line), var(--line)) bottom right / 1px 14px no-repeat;
+  }
+  .slot:has(.slot__empty) { background: var(--paper-2); }
+  figcaption { position: absolute; left: 12px; bottom: 10px; right: 12px; display: grid; gap: 2px; }
+  figcaption .label { color: rgba(236, 232, 227, .7); }
+  .slot:has(.slot__empty) figcaption .label { color: var(--muted); }
+  .slot__need { font-size: .72rem; color: rgba(236, 232, 227, .5); }
+</style>

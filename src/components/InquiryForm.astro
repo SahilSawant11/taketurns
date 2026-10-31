@@ -1,0 +1,406 @@
+---
+import { solutions, applications } from '../content/catalog';
+
+const steps = ['Contact', 'Interest', 'Project', 'Technical', 'Review'];
+---
+<div class="iq" data-iq>
+  <ol class="iq__steps" aria-label="Form progress">
+    {steps.map((s, i) => (
+      <li data-step-ind={i} aria-current={i === 0 ? 'step' : undefined}>
+        <span class="iq__dot mono">{i + 1}</span><span class="iq__lbl">{s}</span>
+      </li>
+    ))}
+  </ol>
+
+  <form novalidate>
+    <p class="iq__status visually-hidden" aria-live="polite"></p>
+
+    <fieldset data-step="0">
+      <legend>Who should we reply to?</legend>
+      <div class="f2">
+        <label class="fld">Full name <span aria-hidden="true">*</span>
+          <input name="name" autocomplete="name" required />
+        </label>
+        <label class="fld">Company <span aria-hidden="true">*</span>
+          <input name="company" autocomplete="organization" required />
+        </label>
+        <label class="fld">Work email <span aria-hidden="true">*</span>
+          <input name="email" type="email" autocomplete="email" required />
+        </label>
+        <label class="fld">Phone <span class="opt">optional</span>
+          <input name="phone" type="tel" autocomplete="tel" />
+        </label>
+        <label class="fld">Country <span class="opt">optional</span>
+          <input name="country" autocomplete="country-name" />
+        </label>
+        <label class="fld">Your role <span class="opt">optional</span>
+          <input name="role" placeholder="e.g. process engineer, consultant, procurement" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset data-step="1" hidden>
+      <legend>What are you looking for?</legend>
+      <div class="fld">
+        <span id="type-l">Type of request <span aria-hidden="true">*</span></span>
+        <div class="choices" role="radiogroup" aria-labelledby="type-l">
+          {[['consultation', 'Project discussion'], ['quote', 'Quote / pricing'], ['technical', 'Technical information']].map(([v, l], i) => (
+            <label class="choice"><input type="radio" name="requestType" value={v} required checked={i === 0} /> {l}</label>
+          ))}
+        </div>
+      </div>
+      <div class="fld">
+        <span id="mat-l">Material <span aria-hidden="true">*</span></span>
+        <div class="choices" role="radiogroup" aria-labelledby="mat-l">
+          {[['frp', 'FRP / dual laminate'], ['gls', 'Glass-lined steel'], ['ss', 'Stainless steel'], ['unsure', 'Not sure yet']].map(([v, l]) => (
+            <label class="choice"><input type="radio" name="material" value={v} required /> {l}</label>
+          ))}
+        </div>
+      </div>
+      <label class="fld">Solution <span class="opt">optional</span>
+        <select name="solution">
+          <option value="">Not sure / other</option>
+          {solutions.map((s) => <option value={s.slug}>{s.name}</option>)}
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset data-step="2" hidden>
+      <legend>Tell us about the project.</legend>
+      <div class="f2">
+        <label class="fld">Application / sector <span aria-hidden="true">*</span>
+          <select name="sector" required>
+            <option value="">Choose one</option>
+            {applications.map((a) => <option value={a.slug}>{a.name}</option>)}
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="fld">Project location <span aria-hidden="true">*</span>
+          <input name="location" required placeholder="City, country" />
+        </label>
+        <label class="fld">Project stage <span class="opt">optional</span>
+          <select name="stage">
+            <option value="">Choose one</option>
+            <option>Early concept / budgeting</option>
+            <option>Design / specification</option>
+            <option>Tender / procurement</option>
+            <option>Replacement or repair of existing equipment</option>
+          </select>
+        </label>
+        <label class="fld">Timeline <span class="opt">optional</span>
+          <input name="timeline" placeholder="e.g. order in Q2, install by year end" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset data-step="3" hidden>
+      <legend>Technical details, as far as you know them.</legend>
+      <p class="muted hint">Approximate values are fine. Leave blank anything you don't know yet.</p>
+      <div class="f2">
+        <label class="fld">Medium stored or handled <span aria-hidden="true">*</span>
+          <input name="medium" required placeholder="e.g. 32% HCl, potable water, brine" />
+        </label>
+        <label class="fld">Capacity or size
+          <input name="capacity" placeholder="e.g. 50 m³, Ø3 m × 6 m" />
+        </label>
+        <label class="fld">Operating temperature
+          <input name="temperature" placeholder="e.g. ambient to 60 °C" />
+        </label>
+        <label class="fld">Pressure / vacuum
+          <input name="pressure" placeholder="e.g. atmospheric, 2 bar(g)" />
+        </label>
+        <label class="fld">Installation
+          <select name="installation">
+            <option value="">Choose one</option>
+            <option>Indoor</option>
+            <option>Outdoor</option>
+            <option>Outdoor, coastal / marine</option>
+            <option>Buried / below ground</option>
+          </select>
+        </label>
+        <label class="fld">Standards or specs to follow
+          <input name="standards" placeholder="If a client spec or standard applies" />
+        </label>
+      </div>
+      <label class="fld">Anything else
+        <textarea name="notes" rows="4" placeholder="Constraints, existing equipment, what's gone wrong before…"></textarea>
+      </label>
+      <label class="check"><input type="checkbox" name="hasDrawings" value="yes" /> I have drawings or a datasheet to share. We'll ask for them in our reply.</label>
+    </fieldset>
+
+    <fieldset data-step="4" hidden>
+      <legend>Check and send.</legend>
+      <dl class="review" data-review></dl>
+      <label class="check"><input type="checkbox" name="consent" value="yes" required /> I agree to be contacted about this inquiry. <span aria-hidden="true">*</span></label>
+    </fieldset>
+
+    <div class="iq__err" role="alert" hidden></div>
+
+    <div class="iq__nav">
+      <button type="button" class="btn btn--ghost" data-back hidden>← Back</button>
+      <button type="button" class="btn" data-next>Continue <span class="arrow" aria-hidden="true">→</span></button>
+      <button type="submit" class="btn" data-submit hidden>Send inquiry</button>
+      <span class="iq__saved muted mono" aria-hidden="true">Draft saved on this device</span>
+    </div>
+  </form>
+
+  <div class="iq__done" data-done="sent" hidden tabindex="-1">
+    <p class="eyebrow">Sent</p>
+    <h2>Thanks. Your inquiry is with the team.</h2>
+    <p class="muted">We'll reply to the email you gave. If you have drawings or datasheets, keep them handy for that reply.</p>
+    <a class="btn btn--ghost" href="/">Back to home</a>
+  </div>
+
+  <div class="iq__done" data-done="not-configured" hidden tabindex="-1">
+    <p class="eyebrow">Not sent</p>
+    <h2>Online sending isn't set up yet.</h2>
+    <p class="muted">Nothing was sent. Copy your inquiry below and email it to the team directly. Your draft stays saved on this device.</p>
+    <pre class="iq__copy" data-copy-text></pre>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <button type="button" class="btn" data-copy>Copy inquiry</button>
+      <button type="button" class="btn btn--ghost" data-edit>Edit inquiry</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .iq { background: var(--card); border-top: 1px solid var(--ink); padding: clamp(20px, 3.5vw, 44px); }
+  .iq__steps { list-style: none; padding: 0; margin: 0 0 32px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .iq__steps li { display: grid; gap: 8px; font-size: 0.7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 10px; border-top: 2px solid var(--line); }
+  .iq__steps li.is-done { border-color: var(--ink-2); }
+  .iq__steps li[aria-current='step'] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+  .iq__dot { display: none; }
+  @media (max-width: 560px) { .iq__lbl { display: none; } .iq__dot { display: inline; } }
+
+  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 22px; }
+  legend { font-size: var(--step-2); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 22px; padding: 0; }
+  .hint { margin-top: -10px; }
+  .f2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+  .fld { display: block; font-weight: 500; font-size: 0.95rem; }
+  .fld > input, .fld > select, .fld > textarea, .fld > .choices { margin-top: 8px; }
+  .opt { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+  input:not([type='radio'], [type='checkbox']), select, textarea {
+    display: block; width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--line); border-bottom-color: var(--ink);
+    border-radius: 0; background: rgba(255,255,255,.45); font-weight: 400;
+  }
+  textarea { resize: vertical; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+  [aria-invalid='true'] { border-color: var(--danger) !important; background: #fdf4f3 !important; }
+  /* .field-err and .review children are created by the script, so they need :global */
+  :global(.field-err) { color: var(--danger); font-size: 0.85rem; font-weight: 500; margin: 0; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice { display: inline-flex; gap: 10px; align-items: center; padding: 10px 16px; min-height: 48px; border: 1px solid var(--line); cursor: pointer; font-weight: 400; background: rgba(255,255,255,.45); }
+  .choice:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  .choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .choice input { accent-color: var(--ink); margin: 0; }
+  .check { display: flex; gap: 12px; align-items: flex-start; font-size: 0.95rem; cursor: pointer; }
+  .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ink); flex: none; }
+
+  .review { margin: 0; display: grid; grid-template-columns: minmax(0, 200px) 1fr; border-top: 1px solid var(--line); }
+  .review :global(dt), .review :global(dd) { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .review :global(dt) { color: var(--muted); font-size: 0.9rem; padding-right: 16px; }
+  .review :global(dd) { overflow-wrap: anywhere; }
+  .review :global(.edit) { grid-column: 1 / -1; padding: 20px 0 8px; border: 0; background: none; text-align: left; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; min-height: 44px; }
+  .review :global(.edit span) { font-weight: 400; text-decoration: underline; color: var(--ink-2); }
+
+  .iq__err { margin-top: 24px; padding: 12px 14px; border-radius: var(--radius); background: #fdf4f3; color: var(--danger); border: 1px solid #e7b9b4; }
+  .iq__nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .iq__saved { margin-left: auto; font-size: 0.75rem; opacity: 0; transition: opacity .3s; }
+  .iq__saved.is-on { opacity: 1; }
+  .iq__done { display: grid; gap: 16px; justify-items: start; }
+  .iq__done h2 { font-size: var(--step-2); }
+  .iq__done:focus { outline: none; }
+  .iq__copy { width: 100%; max-height: 260px; overflow: auto; background: var(--paper-2); padding: 16px; border-radius: var(--radius); font-family: var(--mono); font-size: 0.82rem; white-space: pre-wrap; margin: 0; }
+</style>
+
+<script>
+  import { submitInquiry } from '../lib/submitInquiry';
+
+  const KEY = 'inquiry-draft-v1';
+  const root = document.querySelector<HTMLElement>('[data-iq]')!;
+  const form = root.querySelector('form')!;
+  const sets = [...form.querySelectorAll<HTMLFieldSetElement>('fieldset[data-step]')];
+  const inds = [...root.querySelectorAll<HTMLLIElement>('[data-step-ind]')];
+  const back = form.querySelector<HTMLButtonElement>('[data-back]')!;
+  const next = form.querySelector<HTMLButtonElement>('[data-next]')!;
+  const submit = form.querySelector<HTMLButtonElement>('[data-submit]')!;
+  const err = form.querySelector<HTMLElement>('.iq__err')!;
+  const status = form.querySelector<HTMLElement>('.iq__status')!;
+  const saved = form.querySelector<HTMLElement>('.iq__saved')!;
+  let step = 0;
+
+  const labelFor = (el: Element) => {
+    const lab = el.closest('label.fld, .fld');
+    const own = lab?.querySelector(':scope > span[id]');
+    return (own?.textContent ?? lab?.childNodes[0]?.textContent ?? (el as HTMLInputElement).name).replace('*', '').trim();
+  };
+
+  const data = () => {
+    const out: Record<string, string> = {};
+    new FormData(form).forEach((v, k) => { out[k] = String(v); });
+    return out;
+  };
+
+  // Restore draft, then let URL params (?solution=, ?type=) fill gaps.
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY) || '{}');
+    Object.entries(d).forEach(([k, v]) => {
+      form.querySelectorAll<HTMLInputElement>(`[name="${k}"]`).forEach((el) => {
+        if (el.type === 'radio' || el.type === 'checkbox') el.checked = el.value === v;
+        else el.value = String(v);
+      });
+    });
+  } catch {}
+  const params = new URLSearchParams(location.search);
+  const sol = params.get('solution');
+  if (sol) (form.elements.namedItem('solution') as HTMLSelectElement).value = sol;
+  const t = params.get('type');
+  if (t) form.querySelectorAll<HTMLInputElement>('[name="requestType"]').forEach((r) => (r.checked = r.value === t));
+
+  let saveTimer: number | undefined;
+  form.addEventListener('input', (e) => {
+    const el = e.target as HTMLInputElement;
+    if (el.getAttribute('aria-invalid') === 'true') clearError(el);
+    try { localStorage.setItem(KEY, JSON.stringify(data())); } catch { return; }
+    saved.classList.add('is-on');
+    clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => saved.classList.remove('is-on'), 1400);
+  });
+
+  function clearError(el: HTMLElement) {
+    el.removeAttribute('aria-invalid');
+    const id = el.getAttribute('aria-describedby');
+    if (id) { document.getElementById(id)?.remove(); el.removeAttribute('aria-describedby'); }
+  }
+
+  function validate(i: number) {
+    const fs = sets[i];
+    const fields = [...fs.querySelectorAll<HTMLInputElement>('input, select, textarea')];
+    const bad: { el: HTMLInputElement; msg: string }[] = [];
+    const seenRadio = new Set<string>();
+    fields.forEach((el) => {
+      clearError(el);
+      if (el.type === 'radio') {
+        if (seenRadio.has(el.name)) return;
+        seenRadio.add(el.name);
+        if (el.required && !fs.querySelector(`[name="${el.name}"]:checked`)) bad.push({ el, msg: 'Choose one option.' });
+        return;
+      }
+      if (el.type === 'checkbox') {
+        if (el.required && !el.checked) bad.push({ el, msg: 'Please confirm to continue.' });
+        return;
+      }
+      el.value = el.value.trim();
+      if (el.required && !el.value) bad.push({ el, msg: `${labelFor(el)} is required.` });
+      else if (el.type === 'email' && el.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value)) bad.push({ el, msg: 'Enter a valid email address, like name@company.com.' });
+    });
+    bad.forEach(({ el, msg }, n) => {
+      const id = `err-${el.name}`;
+      const p = document.createElement('p');
+      p.className = 'field-err';
+      p.id = id;
+      p.textContent = msg;
+      const host = el.type === 'radio' ? el.closest('.choices')! : el.type === 'checkbox' ? el.closest('label')! : el;
+      host.insertAdjacentElement('afterend', p);
+      el.setAttribute('aria-invalid', 'true');
+      el.setAttribute('aria-describedby', id);
+      if (n === 0) el.focus();
+    });
+    err.hidden = bad.length === 0;
+    err.textContent = bad.length ? `Please fix ${bad.length === 1 ? 'one field' : `${bad.length} fields`} before continuing.` : '';
+    return bad.length === 0;
+  }
+
+  function buildReview() {
+    const dl = form.querySelector<HTMLDListElement>('[data-review]')!;
+    dl.replaceChildren();
+    sets.slice(0, 4).forEach((fs, i) => {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'edit';
+      edit.innerHTML = `${fs.querySelector('legend')!.textContent}<span>Edit</span>`;
+      edit.addEventListener('click', () => go(i));
+      dl.append(edit);
+      const seen = new Set<string>();
+      fs.querySelectorAll<HTMLInputElement>('input, select, textarea').forEach((el) => {
+        if (seen.has(el.name)) return;
+        seen.add(el.name);
+        let v = '';
+        if (el.type === 'radio') v = (fs.querySelector<HTMLInputElement>(`[name="${el.name}"]:checked`)?.parentElement?.textContent ?? '').trim();
+        else if (el.type === 'checkbox') v = el.checked ? 'Yes' : '';
+        else if (el instanceof HTMLSelectElement) v = el.value ? el.selectedOptions[0].textContent!.trim() : '';
+        else v = el.value.trim();
+        if (!v) return;
+        const dt = document.createElement('dt');
+        dt.textContent = el.type === 'checkbox' ? 'Drawings to share' : labelFor(el);
+        const dd = document.createElement('dd');
+        dd.textContent = v;
+        dl.append(dt, dd);
+      });
+    });
+  }
+
+  function go(i: number) {
+    step = i;
+    sets.forEach((fs, n) => (fs.hidden = n !== i));
+    inds.forEach((li, n) => {
+      li.toggleAttribute('aria-current', n === i);
+      if (n === i) li.setAttribute('aria-current', 'step');
+      li.classList.toggle('is-done', n < i);
+    });
+    back.hidden = i === 0;
+    next.hidden = i === sets.length - 1;
+    submit.hidden = i !== sets.length - 1;
+    err.hidden = true;
+    if (i === sets.length - 1) buildReview();
+    status.textContent = `Step ${i + 1} of ${sets.length}: ${inds[i].textContent?.trim()}`;
+    sets[i].querySelector('legend')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    (sets[i].querySelector<HTMLElement>('input:not([type=hidden]), select, textarea'))?.focus({ preventScroll: true });
+  }
+
+  next.addEventListener('click', () => { if (validate(step)) go(step + 1); });
+  back.addEventListener('click', () => go(step - 1));
+
+  // Reuses the review list so the copied text has the same human-readable labels.
+  const asText = () =>
+    [...form.querySelectorAll('[data-review] dt')].map((dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent}`).join('\n');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validate(step)) return;
+    submit.disabled = true;
+    submit.textContent = 'Sending…';
+    const d = data();
+    const res = await submitInquiry(d);
+    submit.disabled = false;
+    submit.textContent = 'Send inquiry';
+    if (res.status === 'error') {
+      err.hidden = false;
+      err.textContent = `Your inquiry wasn't sent. ${res.message} Your answers are still here.`;
+      return;
+    }
+    form.hidden = true;
+    root.querySelector<HTMLElement>('.iq__steps')!.hidden = true;
+    const done = root.querySelector<HTMLElement>(`[data-done="${res.status}"]`)!;
+    done.hidden = false;
+    done.focus();
+    if (res.status === 'sent') { try { localStorage.removeItem(KEY); } catch {} }
+    else root.querySelector('[data-copy-text]')!.textContent = asText();
+  });
+
+  root.querySelector('[data-copy]')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget as HTMLButtonElement;
+    try {
+      await navigator.clipboard.writeText(root.querySelector('[data-copy-text]')!.textContent ?? '');
+      b.textContent = 'Copied';
+    } catch {
+      b.textContent = 'Select the text above to copy';
+    }
+  });
+  root.querySelector('[data-edit]')?.addEventListener('click', () => {
+    root.querySelector<HTMLElement>('[data-done="not-configured"]')!.hidden = true;
+    form.hidden = false;
+    root.querySelector<HTMLElement>('.iq__steps')!.hidden = false;
+    go(sets.length - 1);
+  });
+</script>

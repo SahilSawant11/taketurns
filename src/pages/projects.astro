@@ -1,0 +1,66 @@
+---
+import Base from '../layouts/Base.astro';
+import Pending from '../components/Pending.astro';
+import CtaBand from '../components/CtaBand.astro';
+import { projects } from '../content/catalog';
+---
+<Base title="Projects" description="Case studies of FRP and glass-lined steel installations.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Projects</p>
+      <h1>Work in the field.</h1>
+      <p class="lede">Each case study covers the challenge, the solution and material chosen, the setting, and the outcome.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      {projects.length ? (
+        <div class="list">
+          {projects.map((p) => (
+            <article class="pj" id={p.slug}>
+              <img src={p.image} alt={`${p.title}, ${p.location}`} loading="lazy" />
+              <div class="pj__body">
+                <div class="pj__meta"><span class={`tag tag--${p.material}`}>{p.material.toUpperCase()}</span><span class="tag">{p.sector}</span><span class="tag">{p.location}</span></div>
+                <h2>{p.title}</h2>
+                <dl>
+                  <dt>Challenge</dt><dd>{p.challenge}</dd>
+                  <dt>Solution</dt><dd>{p.solution}</dd>
+                  <dt>Outcome</dt><dd>{p.outcome}</dd>
+                </dl>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div class="empty">
+          <div class="empty__frame" aria-hidden="true">
+            {['Challenge', 'Solution', 'Material', 'Sector · location', 'Outcome'].map((l) => <span>{l}</span>)}
+          </div>
+          <div class="stack" style="--space:1rem">
+            <h2>Case studies are being prepared.</h2>
+            <p class="muted">Projects will be published here once they and their photos are cleared. In the meantime, we can talk through relevant experience directly.</p>
+            <Pending note="add approved projects to src/content/catalog.ts (projects) + images in /public/projects" />
+            <p><a class="btn btn--ghost" href="/contact/">Ask about relevant experience</a></p>
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+  <CtaBand />
+</Base>
+
+<style>
+  .empty { display: grid; gap: 48px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: center; }
+  .empty h2 { font-size: var(--step-2); }
+  .empty__frame { display: grid; gap: 10px; padding: 24px; border: 1px dashed var(--line); border-radius: var(--radius); }
+  .empty__frame span { font-family: var(--mono); font-size: .78rem; color: var(--muted); padding: 14px; background: var(--card); border-radius: 4px; }
+  .list { display: grid; gap: 64px; }
+  .pj { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+  .pj img { border-radius: var(--radius); aspect-ratio: 4/3; object-fit: cover; width: 100%; }
+  .pj__body { display: grid; gap: 16px; align-content: start; }
+  .pj__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pj dl { display: grid; gap: 6px; margin: 0; }
+  .pj dt { font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-top: 10px; }
+  .pj dd { margin: 0; }
+</style>

@@ -1,0 +1,27 @@
+---
+interface Props { title?: string; body?: string }
+const {
+  title = 'Tell us what the project needs to handle.',
+  body = 'Share the medium, environment, size, location and timeline. Drawings or a spec sheet help. We’ll come back with questions or a recommended direction.',
+} = Astro.props;
+---
+<section class="section tone-green" aria-labelledby="cta-h">
+  <div class="wrap cta">
+    <div class="stack" style="--space:1.2rem">
+      <p class="eyebrow">Project inquiry</p>
+      <h2 id="cta-h">{title}</h2>
+      <p class="lede">{body}</p>
+    </div>
+    <div class="cta__actions">
+      <a class="btn" href="/contact/">Start a project inquiry <span class="arrow" aria-hidden="true">→</span></a>
+      <a class="btn btn--ghost" href="/materials/">Compare materials first</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: end; }
+  .cta h2 { max-width: 18ch; }
+  .cta__actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; }
+  @media (min-width: 900px) { .cta__actions { justify-content: flex-end; } }
+</style>

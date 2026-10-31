@@ -1,0 +1,195 @@
+---
+import { STAGE_FOCUS } from '../scripts/three/stages';
+
+const steps = [
+  { name: 'Mandrel', body: 'A polished steel mandrel sets the vessel’s inside shape.' },
+  { name: 'Surface veil', body: 'A resin-rich veil forms the chemical-resistant inner surface, the layer that faces the contents.' },
+  { name: 'Winding', body: 'Resin-wetted glass roving is wound on at a set helical angle. Pass by pass, the crossing bands build the structural wall.' },
+  { name: 'Curing', body: 'The laminate cures as the mandrel keeps turning, locking fibre and resin into one solid wall.' },
+  { name: 'Finished', body: 'Off the mandrel, topcoated and fitted with nozzles, manway and saddles, ready for inspection.' },
+];
+---
+<section class="wh tone-dark" data-wh data-chapter="Introduction" aria-labelledby="wh-h">
+  <div class="wh__stage">
+    <canvas class="wh__canvas" aria-hidden="true"></canvas>
+    <div class="wh__fx" aria-hidden="true"></div>
+
+    <div class="wh__intro is-on" data-cap="0">
+      <h1 id="wh-h" class="wh__title">
+        <span>Your asset</span>
+        <span class="wh__in">deserves a</span>
+        <span>longer life</span>
+      </h1>
+      <div class="wh__side">
+        <p>
+          Shaktinova Projects engineers FRP, glass-lined steel and stainless solutions, and delivers them through a
+          qualified, vendor-neutral manufacturing network.
+        </p>
+        <a class="btn" href="/contact/">Start a project inquiry <span class="arrow" aria-hidden="true">→</span></a>
+      </div>
+    </div>
+
+    {steps.slice(1).map((s, i) => (
+      <div class="wh__cap" data-cap={i + 1}>
+        <p class="label">[{String(i + 2).padStart(2, '0')}] How an FRP vessel is wound</p>
+        <h2>{s.name}</h2>
+        <p class="wh__body">{s.body}</p>
+      </div>
+    ))}
+
+    <ol class="wh__rail" aria-label="How an FRP vessel is wound (illustrative)">
+      {steps.map((s, i) => (
+        <li>
+          <button type="button" data-step={i} data-p={STAGE_FOCUS[i]} aria-current={i === 0 ? 'step' : undefined}>
+            <span class="wh__n">{String(i + 1).padStart(2, '0')}</span>
+            <span class="wh__nm">{s.name}</span>
+            <span class="wh__bar"><i></i></span>
+          </button>
+        </li>
+      ))}
+    </ol>
+
+    <p class="label label--br wh__hint">Scroll to explore</p>
+    <p class="label wh__note">Illustrative · FRP filament winding</p>
+  </div>
+</section>
+
+<style>
+  .wh { position: relative; height: 900vh; }
+  .wh__stage { position: sticky; top: 0; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; }
+  .wh__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; touch-action: pan-y; }
+  .wh__fx {
+    position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.6) 100%),
+      linear-gradient(0deg, rgba(13,13,13,.88) 0%, rgba(13,13,13,0) 42%);
+  }
+  /* Fine film grain on its own layer so it textures without greying the image. */
+  .wh__fx::after {
+    content: ''; position: absolute; inset: 0; opacity: .07; mix-blend-mode: overlay;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  [data-cap] { transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
+  [data-cap]:not(.is-on) { opacity: 0; transform: translateY(18px); pointer-events: none; }
+
+  .wh__intro {
+    position: absolute; left: var(--gutter); right: var(--gutter); bottom: clamp(56px, 8vh, 96px);
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: 32px; align-items: end;
+  }
+  .wh__title { display: grid; font-size: clamp(2.8rem, 1rem + 6.4vw, 8.4rem); line-height: .88; letter-spacing: -0.055em; }
+  .wh__title span { display: block; white-space: nowrap; }
+  .wh__in { padding-left: 1.1em; color: color-mix(in srgb, var(--ink) 50%, transparent); }
+  .wh__side { display: grid; gap: 20px; justify-items: start; color: var(--ink-2); font-size: .95rem; }
+
+  .wh__cap {
+    position: absolute; left: var(--gutter); bottom: clamp(56px, 8vh, 96px); max-width: min(560px, 60vw);
+    display: grid; gap: 16px;
+  }
+  .wh__cap h2 { font-size: clamp(2.4rem, 1.2rem + 4.6vw, 6.4rem); letter-spacing: -0.055em; line-height: .9; }
+  .wh__body { color: var(--ink-2); font-size: 1.02rem; max-width: 40ch; }
+
+  .wh__rail {
+    position: absolute; right: var(--gutter); top: 110px;
+    list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 168px;
+  }
+  .wh__rail button {
+    width: 100%; display: grid; grid-template-columns: 2.2em 1fr; gap: 0 8px; align-items: center; text-align: left;
+    background: none; border: 0; padding: 8px 0; cursor: pointer; color: var(--muted);
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .wh__rail button:hover, .wh__rail button[aria-current] { color: var(--ink); }
+  .wh__rail button[aria-current] .wh__n { color: var(--accent); }
+  .wh__bar { grid-column: 2; height: 1px; background: var(--line); margin-top: 6px; position: relative; overflow: hidden; }
+  .wh__bar i { position: absolute; inset: 0; background: var(--ink); transform-origin: left; transform: scaleX(var(--p, 0)); }
+
+  .wh__hint { position: absolute; left: var(--gutter); bottom: 22px; transition: opacity .4s; }
+  .wh__note { position: absolute; right: var(--gutter); bottom: 22px; }
+  .wh.is-scrolled .wh__hint { opacity: 0; }
+
+  /* Reduced motion: no pinning; one still frame with clickable steps. */
+  .wh.is-still { height: auto; }
+  .wh.is-still .wh__hint { display: none; }
+
+  @media (max-width: 900px) {
+    .wh { height: 700vh; }
+    .wh__intro { grid-template-columns: 1fr; gap: 20px; }
+    .wh__rail { top: auto; bottom: 46px; left: var(--gutter); right: var(--gutter); transform: none; width: auto; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .wh__rail button { grid-template-columns: 1fr; padding: 4px 0; }
+    .wh__nm { display: none; }
+    .wh__bar { grid-column: 1; }
+    .wh__intro, .wh__cap { bottom: 110px; }
+    .wh__cap { max-width: none; right: var(--gutter); }
+    .wh__note { display: none; }
+  }
+  @media (max-width: 560px) {
+    .wh__title { font-size: 12.6vw; }
+    .wh__in { padding-left: .5em; }
+    .wh__side p { font-size: .9rem; }
+  }
+</style>
+
+<script>
+  import { STAGE_FOCUS } from '../scripts/three/stages';
+
+  const root = document.querySelector<HTMLElement>('[data-wh]')!;
+  const canvas = root.querySelector('canvas')!;
+  const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-step]')];
+  const caps = [...root.querySelectorAll<HTMLElement>('[data-cap]')];
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) root.classList.add('is-still');
+
+  let current = -1;
+  const onStage = (stage: number, frac: number) => {
+    if (stage !== current) {
+      current = stage;
+      buttons.forEach((b, i) => {
+        if (i === stage) b.setAttribute('aria-current', 'step');
+        else b.removeAttribute('aria-current');
+        b.style.setProperty('--p', i < stage ? '1' : '0');
+      });
+      caps.forEach((c) => c.classList.toggle('is-on', Number(c.dataset.cap) === stage));
+    }
+    buttons[stage].style.setProperty('--p', still ? '1' : frac.toFixed(3));
+  };
+  onStage(0, 0);
+
+  const progress = () => {
+    const r = root.getBoundingClientRect();
+    const run = r.height - innerHeight;
+    return run > 0 ? Math.min(1, Math.max(0, -r.top / run)) : 0;
+  };
+
+  import('../scripts/winding')
+    .then(({ createWinding }) => {
+      const api = createWinding(canvas, { still, onStage });
+      // Dev aid: window.__hero.jump(p) snaps the scene to a scroll progress.
+      if (import.meta.env.DEV) (window as unknown as { __hero: typeof api }).__hero = api;
+      if (still) {
+        api.jump(STAGE_FOCUS[2]);
+        buttons.forEach((b, i) => b.addEventListener('click', () => api.jump(STAGE_FOCUS[i])));
+        return;
+      }
+      const onScroll = () => {
+        const p = progress();
+        api.setProgress(p);
+        root.classList.toggle('is-scrolled', p > 0.01);
+      };
+      addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+      // Steps scroll the page to that point in the process.
+      buttons.forEach((b) =>
+        b.addEventListener('click', () => {
+          const run = root.offsetHeight - innerHeight;
+          const top = root.offsetTop + Number(b.dataset.p) * run;
+          const lenis = (window as unknown as { lenis?: { scrollTo(y: number, o?: object): void } }).lenis;
+          lenis ? lenis.scrollTo(top, { duration: 1.6 }) : scrollTo({ top, behavior: 'smooth' });
+        }),
+      );
+    })
+    .catch(() => {
+      // No WebGL: the steps still work as a text walkthrough.
+      root.classList.add('is-still');
+      buttons.forEach((b, i) => b.addEventListener('click', () => onStage(i, 1)));
+    });
+</script>
