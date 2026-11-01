@@ -74,6 +74,12 @@ const steps = [
       radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.6) 100%),
       linear-gradient(0deg, rgba(13,13,13,.88) 0%, rgba(13,13,13,0) 42%);
   }
+  /* Hand-off: the lower frame fades into the next section's colour as the hero scrolls away. */
+  .wh__fx::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(0deg, var(--paper) 0%, var(--paper) 10%, transparent 65%);
+    opacity: var(--exit, 0);
+  }
   /* Fine film grain on its own layer so it textures without greying the image. */
   .wh__fx::after {
     content: ''; position: absolute; inset: 0; opacity: .07; mix-blend-mode: overlay;
@@ -206,6 +212,10 @@ const steps = [
       const onScroll = () => {
         const p = progress();
         api.setProgress(p);
+        const r = root.getBoundingClientRect();
+        const exit = Math.min(1, Math.max(0, (innerHeight - r.bottom) / innerHeight));
+        api.setExit(exit);
+        root.style.setProperty('--exit', exit.toFixed(3));
         root.classList.toggle('is-scrolled', p > 0.01);
       };
       addEventListener('scroll', onScroll, { passive: true });

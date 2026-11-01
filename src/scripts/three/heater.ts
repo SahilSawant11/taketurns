@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 export function createHeater(length = 4.6, radius = 1.78) {
   const group = new THREE.Group();
-  const hoodMat = new THREE.MeshStandardMaterial({ color: '#8d9296', metalness: 0.75, roughness: 0.55, side: THREE.DoubleSide });
+  const hoodMat = new THREE.MeshStandardMaterial({ color: '#5d6266', metalness: 0.7, roughness: 0.6, side: THREE.DoubleSide });
   const frameMat = new THREE.MeshStandardMaterial({ color: '#1a1a1a', metalness: 0.4, roughness: 0.6 });
   const tubeMat = new THREE.MeshStandardMaterial({ color: '#3a2a22', emissive: new THREE.Color('#ff5a14'), emissiveIntensity: 0, roughness: 0.2 });
 

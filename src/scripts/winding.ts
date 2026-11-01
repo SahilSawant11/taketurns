@@ -21,6 +21,7 @@ import { DU, PASSES, floor, laminateMaterial, laminateUniforms, profileAt, studi
 import { HEAD_TURN, createTow, spoolTexture } from './three/tow';
 import { createBeam, createDust, createVapour } from './three/atmosphere';
 import { createHeater } from './three/heater';
+import { createWorkshop } from './three/workshop';
 
 const IDLE_REVS = 0.6; // gentle mandrel turn before winding starts
 const IDLE_RPS = 0.12; // slow turn of the bare mandrel while the visitor reads
@@ -41,7 +42,13 @@ const SHOTS: Shot[] = [
 // Mid-winding close-up: low and near, on the laying point as the bands cross.
 const CLOSE: Shot = { pos: [2.3, 1.15, 4.2], look: [0.1, 0.45, 0.6] };
 
-export type Winding = { setProgress(p: number): void; jump(p: number): void; dispose(): void };
+export type Winding = {
+  setProgress(p: number): void;
+  /** 0 while the hero is pinned → 1 once it has scrolled fully out of view. */
+  setExit(e: number): void;
+  jump(p: number): void;
+  dispose(): void;
+};
 
 export function createWinding(
   canvas: HTMLCanvasElement,
@@ -480,6 +487,8 @@ export function createWinding(
   scene.add(dust.object);
   const beam = createBeam(key, FLOOR_Y);
   scene.add(beam.object);
+  const workshop = createWorkshop(FLOOR_Y);
+  scene.add(workshop.object);
   // Curing: IR heater bank lowered over the vessel, and vapour off the warm laminate.
   const heater = createHeater();
   scene.add(heater.object);
@@ -502,7 +511,7 @@ export function createWinding(
   let lastP = -1;
   const stageNames = ['Ready', 'Surface veil', 'Winding', 'Curing', 'Complete'];
 
-  const apply = (p: number, t: number, dt: number, intro: number) => {
+  const apply = (p: number, t: number, dt: number, intro: number, exit: number) => {
     const st = stageOf(p);
     const frac = clamp01((p - STAGE_P[st]) / (STAGE_P[st + 1] - STAGE_P[st]));
     if (p !== lastP) opts.onStage(st, frac);
@@ -558,8 +567,8 @@ export function createWinding(
     spinner.rotation.y = -0.22 * show + 0.09 * show * Math.sin(t * 0.32);
 
     // Finished: the topcoat is smeared along the vessel, then the fittings go on.
-    uniforms.uCoat.value = st === 4 ? smooth(clamp01(work / 0.55)) : 0;
-    const fit = st === 4 ? clamp01((work - 0.4) / 0.55) : 0;
+    uniforms.uCoat.value = st === 4 ? smooth(clamp01(work / 0.45)) : 0;
+    const fit = st === 4 ? clamp01((work - 0.33) / 0.4) : 0; // all seated by ~75%, then hold
     fittings.position.copy(spinner.position);
     fittings.rotation.y = spinner.rotation.y;
     appear.forEach(({ g, home, from }, n) => {
@@ -577,11 +586,13 @@ export function createWinding(
     heater.update(heaterIn, heat);
     vapour.update(t, heat);
 
-    // Lights come up on first load.
-    const kIn = smooth(clamp01(intro * 1.35));
+    // Lights come up on first load, and close down as the hero scrolls away.
+    const out = 1 - 0.85 * smooth(exit);
+    const kIn = smooth(clamp01(intro * 1.35)) * out;
     key.intensity = 44 * kIn;
-    rim.intensity = 2.2 * smooth(clamp01(intro * 1.35 - 0.3));
-    scene.environmentIntensity = 0.34 * smooth(clamp01(intro * 1.2 - 0.1));
+    rim.intensity = 2.2 * smooth(clamp01(intro * 1.35 - 0.3)) * out;
+    scene.environmentIntensity = 0.34 * smooth(clamp01(intro * 1.2 - 0.1)) * out;
+    workshop.setLevel(kIn);
     dust.update(t, smooth(clamp01(intro * 1.2 - 0.2)) * (1 - 0.6 * show));
     beam.update(0.022 * kIn * (1 - 0.7 * glow));
 
@@ -591,7 +602,7 @@ export function createWinding(
     const ct = st === 0 ? 1 : smooth(clamp01(frac / MOVE));
     // A close-up in the middle of winding, then back out to see the whole pattern.
     const close = st === 2 ? smooth(clamp01((work - 0.2) / 0.12)) * (1 - smooth(clamp01((work - 0.62) / 0.12))) : 0;
-    return { from, to, t: ct, close };
+    return { from, to, t: ct, close, exit: smooth(exit) };
   };
 
   // ---- Camera ----
@@ -610,8 +621,8 @@ export function createWinding(
     ptr.ty = (e.clientY / innerHeight) * 2 - 1;
   };
   addEventListener('pointermove', onPointer, { passive: true });
-  type Placement = { from: Shot; to: Shot; t: number; close: number };
-  const placeCamera = ({ from, to, t: ct, close }: Placement, t: number, intro: number) => {
+  type Placement = { from: Shot; to: Shot; t: number; close: number; exit: number };
+  const placeCamera = ({ from, to, t: ct, close, exit }: Placement, t: number, intro: number) => {
     pos.lerpVectors(a.fromArray(from.pos), b.fromArray(to.pos), ct);
     look.lerpVectors(a.fromArray(from.look), b.fromArray(to.look), ct);
     if (close > 0) {
@@ -623,6 +634,11 @@ export function createWinding(
     // First load: start further out and settle in.
     const dolly = 1 + 0.24 * (1 - smooth(clamp01(intro)));
     pos.sub(look).multiplyScalar(pullBack * dolly).add(look);
+    // Hand-off: the page carries the canvas up, so only its lower part stays on
+    // screen. Drop the camera and tilt up: the vessel sinks into that part of
+    // the frame and ends on a low, heroic angle as the light closes down.
+    pos.y -= 1.1 * exit;
+    look.y += 2.6 * exit;
     // A slow, breathing drift, as if hand-held on a very steady rig, plus parallax.
     right.set(1, 0, 0).applyQuaternion(camera.quaternion);
     up.set(0, 1, 0).applyQuaternion(camera.quaternion);
@@ -652,11 +668,12 @@ export function createWinding(
   // The light shaft is air, not a surface: keep it out of passes that re-render depth.
   const skipAir = (pass: GTAOPass | BokehPass) => {
     const inner = pass.render.bind(pass) as (...a: unknown[]) => void;
+    const air = [beam.object, ...workshop.air];
     pass.render = ((...args: unknown[]) => {
-      const was = beam.object.visible;
-      beam.object.visible = false;
+      const was = air.map((o) => o.visible);
+      air.forEach((o) => (o.visible = false));
       inner(...args);
-      beam.object.visible = was;
+      air.forEach((o, i) => (o.visible = was[i]));
     }) as typeof pass.render;
   };
   skipAir(gtao);
@@ -738,6 +755,7 @@ export function createWinding(
   // ---- Loop ----
   let goal = 0;
   let current = 0;
+  let exit = 0;
   let raf = 0;
   let visible = true;
   let ready = false;
@@ -745,7 +763,7 @@ export function createWinding(
   let time = 0;
   let intro = opts.intro && !opts.still ? 0 : 1;
   const render = (dt: number) => {
-    placeCamera(apply(current, time, dt, intro), time, intro);
+    placeCamera(apply(current, time, dt, intro, exit), time, intro);
     composer.render();
   };
   const tick = (now: number) => {
@@ -788,7 +806,7 @@ export function createWinding(
 
   frame();
   // Compile every shader before the first frame so the intro doesn't stutter.
-  placeCamera(apply(current, 0, 0, intro), 0, intro);
+  placeCamera(apply(current, 0, 0, intro, exit), 0, intro);
   renderer
     .compileAsync(scene, camera)
     .catch(() => {})
@@ -807,6 +825,9 @@ export function createWinding(
         if (ready) render(0);
       }
     },
+    setExit(e) {
+      exit = opts.still ? 0 : clamp01(e);
+    },
     jump(p) {
       goal = current = clamp01(p);
       if (ready) render(0);
@@ -820,6 +841,7 @@ export function createWinding(
       dust.dispose();
       beam.dispose();
       vapour.dispose();
+      workshop.dispose();
       composer.dispose();
       target.dispose();
       envTex.dispose();
