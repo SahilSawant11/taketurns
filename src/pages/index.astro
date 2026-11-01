@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import WindingHero from '../components/WindingHero.astro';
-import FloatingFabric from '../components/FloatingFabric.astro';
+import FloatingDrop from '../components/FloatingDrop.astro';
 import ScrollText from '../components/ScrollText.astro';
 import LayerDiagram from '../components/LayerDiagram.astro';
 import ImageSlot from '../components/ImageSlot.astro';
@@ -21,7 +21,7 @@ const facts = [
   <div data-float="hidden" data-float-at="0.9" aria-hidden="true"></div>
 
   <!-- 01 · Statement -->
-  <section class="section tone-dark" data-chapter="01 · Empowering projects" data-float="statement" data-float-ref=".intro" aria-label="Positioning">
+  <section class="section tone-dark" data-chapter="01 · Empowering projects" data-float="statement" aria-label="Positioning">
     <div class="wrap">
       <p class="chapter__n">[01]</p>
       <ScrollText as="h2" text="Engineering performance through material science, design integrity and *application* *expertise.*" />
@@ -192,7 +192,7 @@ const facts = [
   </section>
 
   <!-- 08 · Finale -->
-  <section class="section tone-green finale" data-chapter="08 · Start a project" data-float="finale" data-float-ref=".finale__cloth" aria-label="Start a project">
+  <section class="section tone-green finale" data-chapter="08 · Start a project" data-float="finale" data-float-ref=".finale__stage" aria-label="Start a project">
     <div class="wrap">
       <ScrollText text="Tell us what it has to hold. We'll engineer *the* *rest.*" />
       <div class="finale__row">
@@ -202,14 +202,14 @@ const facts = [
           <a class="btn btn--ghost" href="/materials/">Compare materials</a>
         </div>
       </div>
-      <!-- Clear stage where the cloth arrives fully woven (see scripts/fabric.ts). -->
-      <div class="finale__cloth" aria-hidden="true">
-        <p class="label">Plain-weave glass fabric · ready for lay-up</p>
+      <!-- Clear stage where the drop lands in a cut-away FRP wall (see scripts/drop.ts). -->
+      <div class="finale__stage" aria-hidden="true">
+        <p class="label">Held by design · FRP wall, cut away to show its layers</p>
       </div>
     </div>
   </section>
   <div data-float="hidden" data-float-at="0.15" aria-hidden="true"></div>
-  <FloatingFabric />
+  <FloatingDrop />
 </Base>
 
 <style>
@@ -281,7 +281,7 @@ const facts = [
 
   .finale { padding-block: clamp(120px, 16vw, 240px); }
   .finale__row { display: grid; gap: 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: end; margin-top: clamp(48px, 7vw, 96px); }
-  .finale__cloth { height: clamp(420px, 70vh, 760px); margin-top: clamp(48px, 8vw, 120px); display: flex; align-items: flex-end; justify-content: center; border-top: 1px solid var(--line); padding-bottom: 8px; }
+  .finale__stage { height: clamp(420px, 70vh, 760px); margin-top: clamp(48px, 8vw, 120px); display: flex; align-items: flex-end; justify-content: center; border-top: 1px solid var(--line); padding-bottom: 8px; }
   .finale__cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; }
   @media (min-width: 900px) { .finale__cta { justify-content: flex-end; } }
 </style>

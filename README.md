@@ -64,16 +64,17 @@ The scene is generated in code, so there are no model files.
 
 See `OWNER-INPUTS.md` for everything still needed from the owner.
 
-## Floating woven glass cloth (home page)
+## The drop (home page)
 
-A square of woven glass-fibre cloth floats down the home page on a fixed, click-through canvas (`src/components/FloatingFabric.astro` + `src/scripts/fabric.ts`).
+A single drop of aggressive liquid follows the home page on a fixed, click-through canvas (`src/components/FloatingDrop.astro` + `src/scripts/drop.ts`). It's the thing every wall on the site is engineered to hold.
 
-- **Weave:** computed per pixel in the shader, so it stays sharp at any size. It uses the same palette and filament detail as the wound vessel: pale glass tows over resin green, crimped where they cross, with frayed ends. There are no image files.
-- **Opting in:** a section opts in with `data-float="<pose>"`. Poses set position, rotation, scale, curl, twist and ripple, relative to the section's top edge, and scroll with the section. Between sections the cloth tumbles into the next pose.
-- **Positioning from a child:** `data-float-ref=".selector"` lays a pose out from a child element instead of the section top.
-- **Hiding:** `data-float="hidden"` markers fade the cloth out, after the hero and before the footer.
-- **Phones:** narrow screens use a small corner version.
-- **Reduced motion:** the cloth snaps to each pose without easing.
+- **Placement:** it sits beside each section's headline. Between sections it falls to the next one, stretching into a teardrop with speed and wobbling when it stops (two damped surface modes driven by its acceleration).
+- **Tone:** over dark sections it reads as clear liquid (bright rim, caustic glow). Over bone and green sections it's dark, glossy liquid.
+- **Life:** a slow idle wobble. On desktop it leans towards a nearby cursor and ripples when the cursor moves across it. A soft shadow on the page lifts and fades as it falls, and a few small drops drift at depth with scroll parallax.
+- **Finale:** it waits above the screen during "Show the work", then falls into an FRP dish on the finale's stage (`.finale__stage`). The dish is wound laminate with a quarter cut away so the wall shows its layers. It splashes, and settles.
+- **Opting in:** a section opts in with `data-float="<pose>"` (poses are in `poseFor`). `data-float-ref` gives a pose its own stage. `data-float="hidden"` markers fade it out after the hero and before the footer.
+- **Phones:** it's smaller and sits above each section's label.
+- **Reduced motion:** it snaps to each pose with no wobble.
 - **Dev check:** in dev, add `?settle` to the URL to snap it to exact poses.
 
 Smooth scrolling is Lenis (`src/components/SmoothScroll.astro`), on every page and off for reduced motion.
