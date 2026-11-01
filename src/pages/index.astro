@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import WindingHero from '../components/WindingHero.astro';
-import FloatingDrop from '../components/FloatingDrop.astro';
+import FloatingLeaf from '../components/FloatingLeaf.astro';
 import ScrollText from '../components/ScrollText.astro';
 import LayerDiagram from '../components/LayerDiagram.astro';
 import ImageSlot from '../components/ImageSlot.astro';
@@ -202,14 +202,14 @@ const facts = [
           <a class="btn btn--ghost" href="/materials/">Compare materials</a>
         </div>
       </div>
-      <!-- Clear stage where the drop lands in a cut-away FRP wall (see scripts/drop.ts). -->
+      <!-- Clear stage where the leaf comes to rest (see scripts/leaf.ts). -->
       <div class="finale__stage" aria-hidden="true">
-        <p class="label">Held by design · FRP wall, cut away to show its layers</p>
+        <p class="label">Kept clean by design</p>
       </div>
     </div>
   </section>
   <div data-float="hidden" data-float-at="0.15" aria-hidden="true"></div>
-  <FloatingDrop />
+  <FloatingLeaf />
 </Base>
 
 <style>

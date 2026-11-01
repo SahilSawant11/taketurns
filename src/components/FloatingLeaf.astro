@@ -1,7 +1,7 @@
 ---
 /**
- * Fixed, click-through canvas for "the drop" that follows the home page.
- * Sections opt in with data-float="<pose>" (see src/scripts/drop.ts).
+ * Fixed, click-through canvas for "the leaf" that follows the home page.
+ * Sections opt in with data-float="<pose>" (see src/scripts/leaf.ts).
  */
 ---
 <canvas class="float" aria-hidden="true"></canvas>
@@ -12,9 +12,9 @@
 
 <script>
   const canvas = document.querySelector<HTMLCanvasElement>('canvas.float')!;
-  // Dev aid: ?settle snaps the drop to its exact pose (for checking placement).
+  // Dev aid: ?settle snaps the leaf to its exact pose (for checking placement).
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches || (import.meta.env.DEV && location.search.includes('settle'));
   // Load after the hero has started so the first screen stays fast.
-  const start = () => import('../scripts/drop').then(({ createDrop }) => createDrop(canvas, { still })).catch(() => canvas.remove());
+  const start = () => import('../scripts/leaf').then(({ createLeaf }) => createLeaf(canvas, { still })).catch(() => canvas.remove());
   'requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 1500 }) : setTimeout(start, 600);
 </script>
