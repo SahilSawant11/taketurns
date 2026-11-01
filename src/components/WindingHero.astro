@@ -162,6 +162,13 @@ const pins = [
   }
   .wh__pin:hover .wh__pl, .wh__pin:focus-visible .wh__pl { background: #0b5f3d; color: #f2efe9; }
   .wh__pin.is-off { visibility: hidden; }
+  /* near the right edge the label sits to the left of its dot */
+  .wh__pin.is-left { flex-direction: row-reverse; transform: translate(calc(var(--x) * 1px - 100% + 6px), calc(var(--y) * 1px - 6px)); }
+  /* the step rail over bright daylight */
+  .wh.is-out .wh__rail button { color: rgba(255, 255, 255, .78); text-shadow: 0 1px 10px rgba(0, 0, 0, .55); }
+  .wh.is-out .wh__rail button[aria-current] { color: #fff; }
+  .wh.is-out .wh__bar { background: rgba(255, 255, 255, .35); }
+  .wh.is-out .wh__bar i { background: #fff; }
 
   .wh__hint { position: absolute; left: var(--gutter); bottom: 22px; transition: opacity .4s; }
   .wh__note { position: absolute; right: var(--gutter); bottom: 22px; }
@@ -220,14 +227,27 @@ const pins = [
     pinBox.inert = on < 0.5;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    for (const p of list) {
-      // the leaf that follows the page rises out of our plume (scripts/leaf.ts)
-      if (p.id === 'plume') (window as unknown as { __plume?: { x: number; y: number } }).__plume = { x: p.x, y: p.y };
-      const el = pinEls.get(p.id);
-      if (!el) continue;
+    // Pins are placed in priority order (the order in the markup); one that would
+    // overlap a label already placed is hidden, so small screens stay readable.
+    const placed: DOMRect[] = [];
+    const byId = new Map(list.map((p) => [p.id, p]));
+    const plume = byId.get('plume');
+    // the leaf that follows the page rises out of our plume (scripts/leaf.ts)
+    if (plume) (window as unknown as { __plume?: { x: number; y: number } }).__plume = { x: plume.x, y: plume.y };
+    for (const [id, el] of pinEls) {
+      const p = byId.get(id);
+      if (!p) continue;
+      const lw = el.offsetWidth || 160;
+      const left = p.x + lw > w - 12;
+      el.classList.toggle('is-left', left);
       el.style.setProperty('--x', p.x.toFixed(1));
       el.style.setProperty('--y', p.y.toFixed(1));
-      el.classList.toggle('is-off', !p.front || p.x < 0 || p.x > w - 40 || p.y < 70 || p.y > h - 60);
+      const x0 = left ? p.x - lw : p.x;
+      const box = new DOMRect(x0 - 4, p.y - 18, lw + 8, 36);
+      const hit = placed.some((b) => box.x < b.right && box.right > b.x && box.y < b.bottom && box.bottom > b.y);
+      const off = !p.front || p.x < 8 || p.x > w - 8 || p.y < 70 || p.y > h - 60 || hit;
+      el.classList.toggle('is-off', off);
+      if (!off) placed.push(box);
     }
   };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;

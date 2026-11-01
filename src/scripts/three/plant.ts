@@ -392,6 +392,9 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     lu.uVeil.value = 1;
     lu.uCure.value = 1;
     lu.uCoat.value = 1;
+    // a shade deeper than in the shop, to sit with the scrubber's topcoat under daylight
+    lu.uCured.value.set('#1b7a4b');
+    lu.uCoatCol.value.set('#0d5f3a');
     const shell = add(new THREE.LatheGeometry(spoolProfile(), 128), keep(laminateMaterial(lu)), 0, 0, 0, section);
     shell.scale.set(1.04, 1, 1.04);
     const liner = add(new THREE.CylinderGeometry(SPOOL.r * 0.97, SPOOL.r * 0.97, SPOOL.half * 2, 64, 1, true), keep(new THREE.MeshStandardMaterial({ color: '#cfe3d4', roughness: 0.5, side: THREE.BackSide })), 0, 0, 0, section);
