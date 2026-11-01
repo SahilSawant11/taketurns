@@ -195,3 +195,7 @@ a.card:hover h2, a.card:hover h3 { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* One soft-wave transition into a section (scripts/waveEdge.ts). */
+.has-wave-edge { position: relative; border-top: 0 !important; }
+.wave-edge { position: absolute; left: 0; bottom: calc(100% - 1px); width: 100%; display: block; pointer-events: none; }

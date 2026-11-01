@@ -44,7 +44,7 @@ const facts = [
   </section>
 
   <!-- 02 · Materials -->
-  <section class="section tone-light" id="materials" data-chapter="02 · Materials" data-float="materials" aria-labelledby="c2">
+  <section class="section tone-light" id="materials" data-wave-edge data-chapter="02 · Materials" data-float="materials" aria-labelledby="c2">
     <div class="wrap">
       <div class="chapter">
         <p class="chapter__n">[02] The materials</p>
@@ -287,6 +287,10 @@ const facts = [
 </style>
 
 <script>
+  import { initWaveEdge } from '../scripts/waveEdge';
+  // the one transition: statement → materials rises in a soft wave
+  document.querySelectorAll<HTMLElement>('[data-wave-edge]').forEach((el) => initWaveEdge(el));
+
   document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
     const activate = (t: HTMLButtonElement) => {
