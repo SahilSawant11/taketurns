@@ -21,7 +21,8 @@ import { PASSES, SPOOL, laminateMaterial, laminateUniforms, spoolProfile } from 
 export const SEAT_Y = 12.3;
 const TOWER_R = 2.1;
 
-export type PinId = 'scrubber' | 'duct' | 'tanks' | 'piping' | 'gls';
+/** 'plume' has no label: it's where the home page's leaf rises from (see leaf.ts). */
+export type PinId = 'scrubber' | 'duct' | 'tanks' | 'piping' | 'gls' | 'plume';
 
 const smooth = (x: number) => THREE.MathUtils.smootherstep(x, 0, 1);
 const clamp01 = (x: number) => THREE.MathUtils.clamp(x, 0, 1);
@@ -485,6 +486,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   // ---- Pins: points the HTML labels track ----
   const pins: { id: PinId; at: THREE.Vector3 }[] = [
     { id: 'scrubber', at: new THREE.Vector3(0, SEAT_Y + SPOOL.half * 2 + 1.2, 0) },
+    { id: 'plume', at: new THREE.Vector3(2.5, SEAT_Y + SPOOL.half * 2 + 6, 0.8) },
     { id: 'duct', at: new THREE.Vector3(9.5, 7.6, 1.5) },
     { id: 'tanks', at: tankFarm.clone().setY(10) },
     { id: 'piping', at: new THREE.Vector3(rack.x + 22, 7.5, rack.z) },

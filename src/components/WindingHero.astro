@@ -21,6 +21,8 @@ const pins = [
 ];
 ---
 <section class="wh tone-dark" data-wh data-chapter="Introduction" aria-labelledby="wh-h">
+  <!-- Where the leaf appears in our plume, near the end of the plant view (scripts/leaf.ts). -->
+  <div class="wh__leafmark" data-float="plume" data-float-at="0" data-float-track=".wh__stage" aria-hidden="true"></div>
   <div class="wh__stage">
     <script is:inline>
       // Hide the headline before first paint so it can rise in with the lights.
@@ -83,6 +85,8 @@ const pins = [
 
 <style>
   .wh { position: relative; height: 1100vh; }
+  .wh__leafmark { position: absolute; left: 0; width: 1px; height: 1px; top: calc((100% - 100vh) * 0.9); }
+  .wh.is-still .wh__leafmark { display: none; }
   .wh__stage { position: sticky; top: 0; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; }
   .wh__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; touch-action: pan-y; }
   .wh__fx {
@@ -217,6 +221,8 @@ const pins = [
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     for (const p of list) {
+      // the leaf that follows the page rises out of our plume (scripts/leaf.ts)
+      if (p.id === 'plume') (window as unknown as { __plume?: { x: number; y: number } }).__plume = { x: p.x, y: p.y };
       const el = pinEls.get(p.id);
       if (!el) continue;
       el.style.setProperty('--x', p.x.toFixed(1));

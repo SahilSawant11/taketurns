@@ -30,8 +30,20 @@ type Pose = {
 const KEYS: (keyof Pose)[] = ['x', 'y', 's', 'opacity', 'rest'];
 const pose = (p: Partial<Pose>): Pose => ({ x: 0, y: 0, s: 0.5, opacity: 1, rest: 0, ...p });
 
+/** Our plume's position from the hero (CSS px in the hero's stage), in world units. */
+function plumeAt(A: number) {
+  const p = (window as unknown as { __plume?: { x: number; y: number } }).__plume;
+  return p ? { x: ((p.x / innerWidth) * 2 - 1) * A, y: 1 - (2 * p.y) / innerHeight } : { x: A * 0.1, y: 0.2 };
+}
+
 /** Beside each headline (they all sit on the left), off-screen during dense sections. */
 function poseFor(name: string, A: number, narrow: boolean): Pose {
+  // Born in the clean plume at the end of the hero: tiny and unseen, then rising out of it.
+  if (name === 'plume') return pose({ ...plumeAt(A), s: 0.05, opacity: 0 });
+  if (name === 'rise') {
+    const p = plumeAt(A);
+    return pose({ x: p.x + 0.12, y: p.y + 0.3, s: narrow ? 0.14 : 0.26 });
+  }
   if (narrow) {
     // Headlines run full width on phones: sit small in the space above each section's label.
     const top = (s: number) => -0.08 - s * 0.45;
@@ -283,10 +295,14 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   // ---------- anchors ----------
   let A = 1;
   let narrow = false;
-  let anchors: { y: number; name: string; el: HTMLElement; ref: HTMLElement; light: number }[] = [];
+  let anchors: { y: number; name: string; el: HTMLElement; ref: HTMLElement; track: HTMLElement; light: number }[] = [];
   const measure = () => {
-    anchors = [...document.querySelectorAll<HTMLElement>('[data-float]')].map((el) => {
+    // markers that aren't laid out (display: none) have no place in the order
+    const els = [...document.querySelectorAll<HTMLElement>('[data-float]')].filter((el) => el.getClientRects().length > 0);
+    anchors = els.map((el) => {
       const ref = el.dataset.floatRef ? el.querySelector<HTMLElement>(el.dataset.floatRef) ?? el : el;
+      // a pose can follow another element on screen (the hero's pinned stage) instead of its own marker
+      const track = el.dataset.floatTrack ? document.querySelector<HTMLElement>(el.dataset.floatTrack) ?? ref : ref;
       return {
         // a pose is "home" once its section's top reaches 25% of the viewport;
         // one with its own stage (the finale) arrives once that stage is well in view
@@ -297,6 +313,7 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
         name: el.dataset.float!,
         el,
         ref,
+        track,
         // only bone sections take the deep green leaf; dark and green ones take the pale one
         light: el.classList.contains('tone-light') ? 1 : 0,
       };
@@ -306,7 +323,8 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     const a = anchors[i];
     const p = poseFor(a?.name ?? 'hidden', A, narrow);
     if (!a) return p;
-    p.y += 1 - (2 * a.ref.getBoundingClientRect().top) / innerHeight;
+    // poses sit relative to their section's top; tracked ones (the plume) are already in screen terms
+    p.y += (a.el.dataset.floatTrack ? 0 : 1) - (2 * a.track.getBoundingClientRect().top) / innerHeight;
     return p;
   };
   /** Where the leaf should be, plus how far it is through a fall (fly) and how many turns it has made. */
