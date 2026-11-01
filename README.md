@@ -52,7 +52,13 @@ The scene is generated in code, so there are no model files.
 - **How the bands are drawn:** a fragment shader lays down the helical bands. `N` sets bands per direction, and `DU` sets turns per pass, which works out to about a 58° winding angle.
 - **Reduced motion:** visitors who prefer reduced motion get still frames. The step buttons still work.
 - **No WebGL:** the steps fall back to a text walkthrough.
-- **Rendering:** it pauses when off-screen or when the tab is hidden. Drag-to-rotate works only with a mouse, so touch scrolling isn't hijacked.
+- **Intro:** on a load at the top of the page, the lights come up and the camera dollies in while the headline rises in. The headline is hidden by an inline script before first paint and revealed when the scene reports ready (or after 4.5 s, whatever happens).
+- **Idle life:** the bare mandrel turns slowly before winding starts, the camera drifts and follows the mouse a little, dust drifts through the key light's shaft (`src/scripts/three/atmosphere.ts`), and the finished vessel sways on a slow turntable.
+- **Fibre tow:** `src/scripts/three/tow.ts` runs the roving off the creel spool, under the wet-out roller, through the payout eye and onto the mandrel at the band's head. Its texture scrolls with the fibre feed.
+- **Cinematography:** midway through winding, the camera swings in on an arc to a close-up of the laying point, with depth of field (`BokehPass`, only on during the close-up), then pulls back out to show the full pattern. Soft bloom picks out clear-coat glints and the heater tubes.
+- **Stages:** the surface veil wraps on along the mandrel in overlapping turns (`vessel.ts`). An IR heater bank (`src/scripts/three/heater.ts`) lowers in for curing, with faint vapour off the laminate. On the finished vessel, nozzles and lugs rise out of the shell, the manway slides out of the dome and the saddles rise through the floor, each settling into place.
+- **Adaptive quality:** if frames average slower than ~45 fps, it steps down once at a time (AO off → lower pixel ratio, no bloom or depth of field → smaller shadow map). In dev, each step logs `[hero] quality tier N`.
+- **Rendering:** it renders every frame while visible, and pauses when off-screen or when the tab is hidden. Drag-to-rotate works only with a mouse, so touch scrolling isn't hijacked.
 
 See `OWNER-INPUTS.md` for everything still needed from the owner.
 

@@ -14,10 +14,18 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { MOVE, STAGE_P } from './three/stages';
 import { DU, PASSES, floor, laminateMaterial, laminateUniforms, profileAt, studioEnvironment, vesselProfile } from './three/vessel';
+import { HEAD_TURN, createTow, spoolTexture } from './three/tow';
+import { createBeam, createDust, createVapour } from './three/atmosphere';
+import { createHeater } from './three/heater';
 
 const IDLE_REVS = 0.6; // gentle mandrel turn before winding starts
+const IDLE_RPS = 0.12; // slow turn of the bare mandrel while the visitor reads
+const INTRO_S = 2.6; // lights-up and dolly-in on first load
+const FLOOR_Y = -1.6;
 const smooth = (x: number) => THREE.MathUtils.smootherstep(x, 0, 1);
 const clamp01 = (x: number) => THREE.MathUtils.clamp(x, 0, 1);
 
@@ -30,12 +38,21 @@ const SHOTS: Shot[] = [
   { pos: [-4.8, 1.7, 8.2], look: [0, 0, 0] }, // cure: low side, warm
   { pos: [0.3, 1.0, 10.4], look: [0, 0.1, 0] }, // finished: product shot
 ];
+// Mid-winding close-up: low and near, on the laying point as the bands cross.
+const CLOSE: Shot = { pos: [2.3, 1.15, 4.2], look: [0.1, 0.45, 0.6] };
 
 export type Winding = { setProgress(p: number): void; jump(p: number): void; dispose(): void };
 
 export function createWinding(
   canvas: HTMLCanvasElement,
-  opts: { still: boolean; onStage(stage: number, frac: number): void },
+  opts: {
+    still: boolean;
+    /** Play the lights-up and dolly-in (only when the page opens at the top). */
+    intro?: boolean;
+    onStage(stage: number, frac: number): void;
+    /** Shaders compiled and the first frame is on screen. */
+    onReady?(): void;
+  },
 ): Winding {
   const small = Math.min(innerWidth, innerHeight) < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -43,7 +60,7 @@ export function createWinding(
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#0d0d0d');
@@ -69,7 +86,7 @@ export function createWinding(
   const cureGlow = new THREE.PointLight('#ffe6c4', 0, 10, 1.4);
   cureGlow.position.set(0, 0.6, 1.8);
   scene.add(cureGlow);
-  scene.add(floor(-1.6));
+  scene.add(floor(FLOOR_Y));
   // Faint workshop grid on the floor.
   const grid = new THREE.GridHelper(40, 80, '#2c3a33', '#1d2621');
   grid.position.y = -1.595;
@@ -89,7 +106,6 @@ export function createWinding(
   mandrel.castShadow = true;
   spinner.add(mandrel);
   const uniforms = laminateUniforms();
-  uniforms.uOff.value = IDLE_REVS % 1;
   const lamMat = laminateMaterial(uniforms);
   const laminate = new THREE.Mesh(lathe, lamMat);
   laminate.castShadow = true;
@@ -106,16 +122,18 @@ export function createWinding(
   const padMat = new THREE.MeshPhysicalMaterial({ color: '#1a6e44', roughness: 0.4, clearcoat: 0.8, clearcoatRoughness: 0.12 });
   const zinc = new THREE.MeshStandardMaterial({ color: '#c3c7cb', metalness: 0.9, roughness: 0.32 });
   const darkSteel = new THREE.MeshStandardMaterial({ color: '#1d1f21', metalness: 0.5, roughness: 0.5 });
-  const appear: THREE.Object3D[] = [];
-  const part = (build: (g: THREE.Group) => void) => {
+  // Each part is fitted from a hidden start: nozzles and lugs rise out of the
+  // shell, the manway slides out of the dome, saddles rise through the floor.
+  const appear: { g: THREE.Group; home: THREE.Vector3; from: THREE.Vector3 }[] = [];
+  const part = (build: (g: THREE.Group) => void, from: [number, number, number]) => {
     const g = new THREE.Group();
     build(g);
     g.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
     });
-    g.scale.setScalar(0.001);
+    g.visible = false;
     fittings.add(g);
-    appear.push(g);
+    appear.push({ g, home: g.position.clone(), from: new THREE.Vector3(...from) });
     return g;
   };
   const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material, parent: THREE.Object3D) => {
@@ -176,7 +194,7 @@ export function createWinding(
       const cover = mesh(new THREE.CylinderGeometry(r * 2.15, r * 2.15, 0.05, 64), frpMat, g);
       cover.position.y = h + 0.076;
       studs(g, r * 1.82, studsN, h + 0.101, h - 0.035);
-    });
+    }, [0, -(h + 0.2), 0]);
   nozzle(-1.2, 0.15, 0.42, 8);
   nozzle(0.75, 0.1, 0.34, 6);
   nozzle(-0.15, 0.065, 0.26, 4);
@@ -210,7 +228,7 @@ export function createWinding(
     mesh(new THREE.TubeGeometry(arm, 48, 0.022, 12), zinc, g);
     const bracket = mesh(new RoundedBoxGeometry(0.12, 0.1, 0.1, 2, 0.015), darkSteel, g);
     bracket.position.set(0, 0.52, 0);
-  });
+  }, [-0.72, 0, 0]);
 
   // Lifting lugs: plate with an eye, on a laminated pad.
   const lugGeo = (() => {
@@ -234,7 +252,7 @@ export function createWinding(
       pad.position.y = 0.01;
       const lug = mesh(lugGeo, frpMat, g);
       lug.position.y = 0.02;
-    });
+    }, [0, -0.36, 0]);
 
   // Saddle supports: a curved cradle that wraps the shell, web cut-out, base plate, anchor bolts.
   const saddleGeo = (() => {
@@ -280,7 +298,7 @@ export function createWinding(
         bolt2.position.x = -0.15;
         g.add(bolt2);
       }
-    });
+    }, [0, -1.2, 0]);
 
   // Nameplate riveted to the front of the shell.
   part((g) => {
@@ -306,7 +324,7 @@ export function createWinding(
     const plate = mesh(new THREE.PlaneGeometry(0.46, 0.2), new THREE.MeshStandardMaterial({ map: tex, metalness: 0.6, roughness: 0.4 }), g);
     g.position.set(-0.55, -0.12, 0);
     plate.position.z = SHELL + 0.022; // small stand-off so the flat plate clears the curved shell
-  });
+  }, [0, 0, -0.1]);
 
   // Machine
   const machine = new THREE.Group();
@@ -315,7 +333,7 @@ export function createWinding(
   const graphite = new THREE.MeshStandardMaterial({ color: '#2a2a2a', metalness: 0.4, roughness: 0.62, transparent: true });
   const steel = new THREE.MeshStandardMaterial({ color: '#a9adb1', metalness: 0.9, roughness: 0.45, transparent: true });
   const resin = new THREE.MeshPhysicalMaterial({ color: '#1f8a55', roughness: 0.2, clearcoat: 0.6, transparent: true });
-  const spool = new THREE.MeshStandardMaterial({ color: '#e4e7e2', roughness: 0.75, transparent: true });
+  const spool = new THREE.MeshStandardMaterial({ color: '#eceee8', map: spoolTexture(), roughness: 0.8, transparent: true });
   const machineMats: THREE.Material[] = [powder, graphite, steel, resin, spool];
   const rbox = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = machine) => {
     const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 4, Math.min(w, h, d) * 0.12), m);
@@ -435,7 +453,7 @@ export function createWinding(
   surface.rotation.x = -Math.PI / 2;
   surface.position.set(0, -0.715, 2.07);
   carriage.add(surface);
-  cyl(0.07, 0.56, steel, 'x', 0, -0.72, 2.07, carriage); // wet-out roller
+  const roller = cyl(0.07, 0.56, steel, 'x', 0, -0.72, 2.07, carriage); // wet-out roller
   rbox(0.15, 1.15, 0.15, graphite, 0, -0.33, 2.26, carriage); // column
   rbox(0.11, 0.11, 0.78, graphite, 0, 0.05, 1.9, carriage); // arm
   const EYE = new THREE.Vector3(0, 0.05, 1.5);
@@ -443,51 +461,65 @@ export function createWinding(
 
   eye.position.copy(EYE);
   carriage.add(eye);
-  cyl(0.24, 0.42, graphite, 'x', 0, -0.52, 2.72, carriage); // spool core
-  cyl(0.2, 0.36, spool, 'x', 0, -0.52, 2.72, carriage);
+  // creel: roving package on a spindle between two uprights
+  cyl(0.07, 0.5, graphite, 'x', 0, -0.52, 2.72, carriage); // spindle
+  const pkg = cyl(0.22, 0.36, spool, 'x', 0, -0.52, 2.72, carriage);
+  for (const sx of [-0.25, 0.25]) rbox(0.035, 0.46, 0.14, graphite, sx, -0.75, 2.72, carriage);
 
-  // Fibre band: spool → wet-out roller → payout eye → laying point.
-  const ribbonGeo = new THREE.BufferGeometry();
-  const ribbonPos = new Float32Array(8 * 3);
-  ribbonGeo.setAttribute('position', new THREE.BufferAttribute(ribbonPos, 3));
-  ribbonGeo.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4, 4, 3, 5, 4, 5, 6, 6, 5, 7]);
-  const ribbon = new THREE.Mesh(
-    ribbonGeo,
-    new THREE.MeshStandardMaterial({ color: '#e3eae0', roughness: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.95 }),
-  );
-  scene.add(ribbon);
-  const setRibbon = (x: number, surfR: number, show: boolean) => {
-    ribbon.visible = show;
-    if (!show) return;
-    const w = 0.12;
-    [[x, -0.36, 2.72], [x, -0.72, 2.07], [x, EYE.y, EYE.z], [x, 0, surfR]].forEach(([px, py, pz], i) =>
-      ribbonPos.set([px - w, py, pz, px + w, py, pz], i * 6),
-    );
-    ribbonGeo.attributes.position.needsUpdate = true;
-    ribbonGeo.computeVertexNormals();
+  const tow = createTow(carriage, scene, EYE);
+  /** Mandrel radius at axial position x (profile points run along the axis). */
+  const radiusAt = (x: number) => {
+    if (x <= pts[0].y) return pts[0].x;
+    for (let i = 1; i < pts.length; i++)
+      if (x <= pts[i].y) return THREE.MathUtils.lerp(pts[i - 1].x, pts[i].x, (x - pts[i - 1].y) / (pts[i].y - pts[i - 1].y));
+    return pts[pts.length - 1].x;
   };
 
-  // ---- State from progress ----
+  // Workshop air: dust in the key light, and the light's shaft.
+  const dust = createDust(small ? 160 : 320, key);
+  scene.add(dust.object);
+  const beam = createBeam(key, FLOOR_Y);
+  scene.add(beam.object);
+  // Curing: IR heater bank lowered over the vessel, and vapour off the warm laminate.
+  const heater = createHeater();
+  scene.add(heater.object);
+  const vapour = createVapour(small ? 40 : 80, 1.06, 2.1);
+  scene.add(vapour.object);
+
+  // ---- State from progress (and time) ----
   const stageOf = (p: number) => {
     let i = STAGE_P.length - 2;
     while (i > 0 && p < STAGE_P[i]) i--;
     return i;
   };
 
-  const apply = (p: number) => {
+  // Before any band is laid the steel mandrel and the veil look the same at
+  // every angle, so it can turn freely with time. The extra turns are folded
+  // into the band pattern's phase, so winding still starts at the eye; once a
+  // band exists the turn is locked to scroll again.
+  let idleRevs = 0;
+  let idleW = 1;
+  let lastP = -1;
+  const stageNames = ['Ready', 'Surface veil', 'Winding', 'Curing', 'Complete'];
+
+  const apply = (p: number, t: number, dt: number, intro: number) => {
     const st = stageOf(p);
     const frac = clamp01((p - STAGE_P[st]) / (STAGE_P[st + 1] - STAGE_P[st]));
-    opts.onStage(st, frac);
+    if (p !== lastP) opts.onStage(st, frac);
+    lastP = p;
     // Process advances only once the camera has settled.
     const work = clamp01((frac - MOVE) / (1 - MOVE));
 
     const passes = st < 2 ? 0 : st === 2 ? work * PASSES : PASSES;
     const pre = clamp01(p / STAGE_P[2]) * IDLE_REVS;
     const post = st > 2 ? 0.25 * (st - 3 + (st === 3 ? work : frac)) : 0;
-    spinner.rotation.x = -2 * Math.PI * (pre + passes * DU + post);
+    if (passes > 0 || st > 2) idleW = 0;
+    else idleW += ((st < 2 ? 1 : 0) - idleW) * (1 - Math.exp(-dt * 2.5));
+    idleRevs += IDLE_RPS * idleW * dt;
+    spinner.rotation.x = -2 * Math.PI * (pre + idleRevs + passes * DU + post);
+    uniforms.uOff.value = (((IDLE_REVS + idleRevs - HEAD_TURN) % 1) + 1) % 1;
 
     uniforms.uProgress.value = passes;
-    const stageNames = ['Ready', 'Surface veil', 'Winding', 'Curing', 'Complete'];
     drawScreen(stageNames[st], Math.min(PASSES, Math.floor(passes)), st === 2 ? 22 : st === 3 ? 6 : st === 4 ? 0 : 4, (st + (st === 4 ? 1 : work)) / 5);
     uniforms.uVeil.value = st === 0 ? 0 : st === 1 ? smooth(work) : 1;
     uniforms.uCure.value = st < 3 ? 0 : st === 3 ? smooth(work) : 1;
@@ -500,39 +532,66 @@ export function createWinding(
     // Machine fades away for the finished-vessel product shot.
     const mOp = st === 4 ? 1 - smooth(clamp01(frac / MOVE)) : 1;
     machineMats.forEach((m) => (m.opacity = mOp));
+    tow.setOpacity(mOp);
     machine.visible = jaws.visible = mOp > 0.01;
     machine.position.y = -0.8 * (1 - mOp);
 
     let v = 0;
+    let dir: 1 | -1 = 1;
     if (st === 2 && passes > 0) {
       const k = Math.min(Math.floor(passes), PASSES - 1);
       const f = passes - k;
-      v = k % 2 === 0 ? f : 1 - f;
+      dir = k % 2 === 0 ? 1 : -1;
+      v = dir === 1 ? f : 1 - f;
     }
     const prof = profileAt(pts, v);
     carriage.position.x = st === 2 ? prof.y : -2.75;
-    setRibbon(prof.y, prof.x * grow, st === 2 && passes > 0);
+    // Fibre runs off the creel, round the wet-out roller and out to the mandrel.
+    const feed = tow.feedFor(passes * DU, 1.02);
+    pkg.rotation.x = -feed / 0.22;
+    roller.rotation.x = -feed / 0.07;
+    tow.update({ x: carriage.position.x, r: prof.x * grow, radiusAt: (x) => radiusAt(x) * grow, dir, show: st === 2 && passes > 0, feed, t, dt });
 
+    // Finished: lift, turn to three-quarter, then a slow turntable sway.
     const show = st === 4 ? smooth(clamp01(frac / MOVE)) : 0;
     spinner.position.y = 0.3 * show;
-    spinner.rotation.y = -0.22 * show;
+    spinner.rotation.y = -0.22 * show + 0.09 * show * Math.sin(t * 0.32);
 
     // Finished: the topcoat is smeared along the vessel, then the fittings go on.
     uniforms.uCoat.value = st === 4 ? smooth(clamp01(work / 0.55)) : 0;
     const fit = st === 4 ? clamp01((work - 0.4) / 0.55) : 0;
     fittings.position.copy(spinner.position);
     fittings.rotation.y = spinner.rotation.y;
-    appear.forEach((g, n) => {
-      const k = smooth(clamp01(fit * 2.2 - n * 0.14));
-      g.scale.setScalar(Math.max(0.001, k));
-      g.visible = k > 0.002;
+    appear.forEach(({ g, home, from }, n) => {
+      const k = clamp01(fit * 2.2 - n * 0.14);
+      // ease out with a slight overshoot that settles back, like a part being seated
+      const e = 1 + 1.6 * Math.pow(k - 1, 3) + 0.6 * Math.pow(k - 1, 2);
+      g.position.copy(home).addScaledVector(from, 1 - e);
+      g.visible = k > 0.001;
     });
+
+    // Cure: the heater bank comes down during the camera move, glows while the
+    // laminate cures, then lifts away as the machine fades for the product shot.
+    const heaterIn = st === 3 ? smooth(clamp01(frac / MOVE)) : st === 4 ? 1 - smooth(clamp01(frac / MOVE)) : 0;
+    const heat = st === 3 ? smooth(clamp01(work / 0.25)) * (1 - smooth(clamp01((work - 0.82) / 0.18))) : 0;
+    heater.update(heaterIn, heat);
+    vapour.update(t, heat);
+
+    // Lights come up on first load.
+    const kIn = smooth(clamp01(intro * 1.35));
+    key.intensity = 44 * kIn;
+    rim.intensity = 2.2 * smooth(clamp01(intro * 1.35 - 0.3));
+    scene.environmentIntensity = 0.34 * smooth(clamp01(intro * 1.2 - 0.1));
+    dust.update(t, smooth(clamp01(intro * 1.2 - 0.2)) * (1 - 0.6 * show));
+    beam.update(0.022 * kIn * (1 - 0.7 * glow));
 
     // Camera: ease from the previous stage's shot, then hold.
     const from = SHOTS[Math.max(0, st - 1)];
     const to = SHOTS[st];
-    const t = st === 0 ? 1 : smooth(clamp01(frac / MOVE));
-    return { from, to, t };
+    const ct = st === 0 ? 1 : smooth(clamp01(frac / MOVE));
+    // A close-up in the middle of winding, then back out to see the whole pattern.
+    const close = st === 2 ? smooth(clamp01((work - 0.2) / 0.12)) * (1 - smooth(clamp01((work - 0.62) / 0.12))) : 0;
+    return { from, to, t: ct, close };
   };
 
   // ---- Camera ----
@@ -540,14 +599,46 @@ export function createWinding(
   const look = new THREE.Vector3();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const up = new THREE.Vector3();
   let pullBack = 1;
-  const placeCamera = ({ from, to, t }: { from: Shot; to: Shot; t: number }) => {
-    pos.lerpVectors(a.fromArray(from.pos), b.fromArray(to.pos), t);
-    look.lerpVectors(a.fromArray(from.look), b.fromArray(to.look), t);
+  // Pointer parallax (mouse only), eased.
+  const ptr = { x: 0, y: 0, tx: 0, ty: 0 };
+  const onPointer = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    ptr.tx = (e.clientX / innerWidth) * 2 - 1;
+    ptr.ty = (e.clientY / innerHeight) * 2 - 1;
+  };
+  addEventListener('pointermove', onPointer, { passive: true });
+  type Placement = { from: Shot; to: Shot; t: number; close: number };
+  const placeCamera = ({ from, to, t: ct, close }: Placement, t: number, intro: number) => {
+    pos.lerpVectors(a.fromArray(from.pos), b.fromArray(to.pos), ct);
+    look.lerpVectors(a.fromArray(from.look), b.fromArray(to.look), ct);
+    if (close > 0) {
+      // swing in on an arc (lifted mid-way) rather than a straight line
+      pos.lerp(a.fromArray(CLOSE.pos), close).y += 0.6 * Math.sin(Math.PI * close);
+      look.lerp(a.fromArray(CLOSE.look), close);
+    }
     // Narrow screens: pull back along the view line so the machine still fits.
-    pos.sub(look).multiplyScalar(pullBack).add(look);
+    // First load: start further out and settle in.
+    const dolly = 1 + 0.24 * (1 - smooth(clamp01(intro)));
+    pos.sub(look).multiplyScalar(pullBack * dolly).add(look);
+    // A slow, breathing drift, as if hand-held on a very steady rig, plus parallax.
+    right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    const dx = Math.sin(t * 0.21) * 0.6 + Math.sin(t * 0.53 + 1.3) * 0.4;
+    const dy = Math.sin(t * 0.17 + 2.1) * 0.6 + Math.sin(t * 0.41) * 0.4;
+    pos.addScaledVector(right, dx * 0.06 + ptr.x * 0.32).addScaledVector(up, dy * 0.04 - ptr.y * 0.16);
+    look.addScaledVector(right, dx * 0.015).addScaledVector(up, dy * 0.01);
     camera.position.copy(pos);
     camera.lookAt(look);
+    // Depth of field only in the close-up, focused on the laying point.
+    const dofOn = close > 0.01 && tier < 2;
+    bokeh.enabled = dofOn;
+    if (dofOn) {
+      bokehU.focus.value = pos.distanceTo(look);
+      bokehU.aperture.value = 0.006 * close;
+    }
   };
 
   // ---- Post-processing: multisampled HDR target → AO → AgX output ----
@@ -558,7 +649,26 @@ export function createWinding(
   gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.4, thickness: 1.2, scale: 1.2, samples: 16 });
   gtao.blendIntensity = 0.85;
   gtao.enabled = !small;
+  // The light shaft is air, not a surface: keep it out of passes that re-render depth.
+  const skipAir = (pass: GTAOPass | BokehPass) => {
+    const inner = pass.render.bind(pass) as (...a: unknown[]) => void;
+    pass.render = ((...args: unknown[]) => {
+      const was = beam.object.visible;
+      beam.object.visible = false;
+      inner(...args);
+      beam.object.visible = was;
+    }) as typeof pass.render;
+  };
+  skipAir(gtao);
   composer.addPass(gtao);
+  const bokeh = new BokehPass(scene, camera, { focus: 5, aperture: 0, maxblur: 0.009 });
+  const bokehU = bokeh.uniforms as unknown as Record<'focus' | 'aperture' | 'maxblur', { value: number }>;
+  bokeh.enabled = false;
+  skipAir(bokeh);
+  composer.addPass(bokeh);
+  // Soft bloom on true highlights only: clear-coat glints, heater tubes.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0.2, 1.3);
+  composer.addPass(bloom);
   composer.addPass(new OutputPass());
   // Final grade in display space: light unsharp mask, a hint of saturation and contrast.
   const grade = new ShaderPass({
@@ -591,30 +701,70 @@ export function createWinding(
     camera.fov = camera.aspect < 1 ? 40 : 30;
     pullBack = camera.aspect < 1.3 ? THREE.MathUtils.clamp(1.3 / camera.aspect, 1, 2.2) * (camera.aspect < 1 ? 0.8 : 1) : 1;
     camera.updateProjectionMatrix();
+    dust.resize(h * dpr, camera.fov);
+    vapour.resize(h * dpr, camera.fov);
   };
 
+  // ---- Adaptive quality: step down if frames run long, never back up ----
+  let tier = 0;
+  let sampleT = 0;
+  let sampleN = 0;
+  let warm = 0;
+  const degrade = () => {
+    tier++;
+    if (tier === 1) gtao.enabled = false;
+    if (tier === 2) {
+      renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.25));
+      bloom.enabled = false;
+    }
+    if (tier === 3) {
+      renderer.setPixelRatio(1);
+      key.shadow.mapSize.set(1024, 1024);
+      key.shadow.map?.dispose();
+      key.shadow.map = null;
+    }
+    frame();
+    if (import.meta.env.DEV) console.info(`[hero] quality tier ${tier}`);
+  };
+  const watch = (raw: number) => {
+    warm += raw;
+    if (warm < 3 || tier >= 3) return; // ignore start-up (shader compile, decoding)
+    sampleT += raw;
+    if (++sampleN < 90) return;
+    if (sampleT / sampleN > 1 / 45) degrade();
+    sampleT = sampleN = 0;
+  };
+
+  // ---- Loop ----
   let goal = 0;
   let current = 0;
-  let dirty = true;
   let raf = 0;
   let visible = true;
+  let ready = false;
   let last = performance.now();
-  const render = () => {
-    placeCamera(apply(current));
+  let time = 0;
+  let intro = opts.intro && !opts.still ? 0 : 1;
+  const render = (dt: number) => {
+    placeCamera(apply(current, time, dt, intro), time, intro);
     composer.render();
-    dirty = false;
   };
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
-    const dt = Math.min((now - last) / 1000, 0.05);
+    const raw = (now - last) / 1000;
+    const dt = Math.min(raw, 0.05);
     last = now;
-    const before = current;
+    time += dt;
+    intro = Math.min(1, intro + dt / INTRO_S);
     current += (goal - current) * (1 - Math.exp(-dt * 4.5)); // calm scroll inertia
     if (Math.abs(goal - current) < 0.00005) current = goal;
-    if (current !== before || dirty) render();
+    const k = 1 - Math.exp(-dt * 3);
+    ptr.x += (ptr.tx - ptr.x) * k;
+    ptr.y += (ptr.ty - ptr.y) * k;
+    render(dt);
+    watch(raw);
   };
   const start = () => {
-    if (raf || opts.still) return;
+    if (raf || opts.still || !ready) return;
     last = performance.now();
     raf = requestAnimationFrame(tick);
   };
@@ -625,8 +775,7 @@ export function createWinding(
 
   const ro = new ResizeObserver(() => {
     frame();
-    dirty = true;
-    if (!raf) render();
+    if (ready && !raf) render(0);
   });
   ro.observe(canvas);
   const io = new IntersectionObserver(([e]) => {
@@ -638,26 +787,39 @@ export function createWinding(
   document.addEventListener('visibilitychange', onVis);
 
   frame();
-  render();
-  start();
+  // Compile every shader before the first frame so the intro doesn't stutter.
+  placeCamera(apply(current, 0, 0, intro), 0, intro);
+  renderer
+    .compileAsync(scene, camera)
+    .catch(() => {})
+    .then(() => {
+      ready = true;
+      render(0);
+      opts.onReady?.();
+      if (visible && !document.hidden) start();
+    });
 
   return {
     setProgress(p) {
       goal = clamp01(p);
       if (opts.still) {
         current = goal;
-        render();
+        if (ready) render(0);
       }
     },
     jump(p) {
       goal = current = clamp01(p);
-      render();
+      if (ready) render(0);
     },
     dispose() {
       stop();
       ro.disconnect();
       io.disconnect();
       document.removeEventListener('visibilitychange', onVis);
+      removeEventListener('pointermove', onPointer);
+      dust.dispose();
+      beam.dispose();
+      vapour.dispose();
       composer.dispose();
       target.dispose();
       envTex.dispose();

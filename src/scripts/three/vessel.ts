@@ -110,9 +110,16 @@ export function laminateMaterial(uniforms: LaminateUniforms) {
             lamCover = 1.0 - (1.0 - lamCover) * (1.0 - b * 0.9);
           }
           vec3 fibre = mix(uWet, uCured, uCure) * lamRov * (1.0 - lamEdge * 0.3);
-          vec3 base = mix(uResin, uCured * 0.8, uCure);
+          // Surface veil: a resin-wet tissue wrapped on in overlapping helical
+          // turns, so it sweeps along the mandrel with a stepped leading edge.
+          float vq = v + 0.1 * fract(vUv.x * 3.0);
+          float vEdge = uVeil * 1.22 - 0.08;
+          float veil = 1.0 - smoothstep(vEdge - 0.008, vEdge, vq);
+          float tissue = lamNoise(vUv * vec2(260.0, 90.0)) * 0.6 + lamNoise(vUv * vec2(70.0, 24.0)) * 0.4;
+          float lap = smoothstep(0.012, 0.0, abs(fract(vUv.x * 3.0) - 0.0)) * 0.5 + smoothstep(0.02, 0.0, vEdge - vq) * veil;
+          vec3 base = mix(uResin, uCured * 0.8, uCure) * mix(1.0, 0.9 + 0.2 * tissue, 1.0 - uCure * 0.6) * (1.0 + 0.18 * lap * (1.0 - uCure));
           diffuseColor.rgb = mix(base, fibre, lamCover);
-          diffuseColor.a *= max(uVeil * 0.9, lamCover);
+          diffuseColor.a *= max(veil * 0.9, lamCover);
           if (uCoat > 0.0) {
             // the coat flows along the axis with an uneven, organic wet edge
             float front = uCoat * 1.14 - 0.07;
