@@ -2,11 +2,22 @@
 import { STAGE_FOCUS } from '../scripts/three/stages';
 
 const steps = [
-  { name: 'Mandrel', body: 'A polished steel mandrel sets the vessel’s inside shape.' },
+  { name: 'Mandrel', body: 'A polished steel mandrel sets the section’s inside shape.' },
   { name: 'Surface veil', body: 'A resin-rich veil forms the chemical-resistant inner surface, the layer that faces the contents.' },
   { name: 'Winding', body: 'Resin-wetted glass roving is wound on at a set helical angle. Pass by pass, the crossing bands build the structural wall.' },
   { name: 'Curing', body: 'The laminate cures as the mandrel keeps turning, locking fibre and resin into one solid wall.' },
-  { name: 'Finished', body: 'Off the mandrel, topcoated and fitted with nozzles, manway and saddles, ready for inspection.' },
+  { name: 'Off the mandrel', body: 'Topcoated and flanged at both ends, the finished section is upended and lifted out of the shop.' },
+  { name: 'Into service', body: 'On site it becomes the stack of an FRP fume scrubber, the wall between corrosive process gas and the open air.' },
+  { name: 'In the plant', body: 'Scrubbers, ducting, piping and storage tanks: FRP works across a plant wherever chemicals would eat other materials.' },
+];
+
+// FRP in the plant view, labelled once the camera rises over it (positions come from scripts/three/plant.ts).
+const pins = [
+  { id: 'scrubber', name: 'Fume scrubber', href: '/solutions/#frp-process-equipment' },
+  { id: 'duct', name: 'FRP ducting', href: '/solutions/#frp-process-equipment' },
+  { id: 'piping', name: 'FRP piping', href: '/solutions/#frp-process-equipment' },
+  { id: 'tanks', name: 'Chemical storage tanks', href: '/applications/chemical-process/' },
+  { id: 'gls', name: 'Glass-lined water tanks', href: '/solutions/#gls-equipment' },
 ];
 ---
 <section class="wh tone-dark" data-wh data-chapter="Introduction" aria-labelledby="wh-h">
@@ -41,13 +52,19 @@ const steps = [
 
     {steps.slice(1).map((s, i) => (
       <div class="wh__cap" data-cap={i + 1}>
-        <p class="label">[{String(i + 2).padStart(2, '0')}] How an FRP vessel is wound</p>
+        <p class="label">[{String(i + 2).padStart(2, '0')}] From the mandrel to the plant</p>
         <h2>{s.name}</h2>
         <p class="wh__body">{s.body}</p>
       </div>
     ))}
 
-    <ol class="wh__rail" aria-label="How an FRP vessel is wound (illustrative)">
+    <div class="wh__pins" data-pins inert>
+      {pins.map((p) => (
+        <a class="wh__pin" href={p.href} data-pin={p.id}><span class="wh__dot" aria-hidden="true"></span><span class="wh__pl">{p.name}</span></a>
+      ))}
+    </div>
+
+    <ol class="wh__rail" aria-label="From the mandrel to the plant (illustrative)">
       {steps.map((s, i) => (
         <li>
           <button type="button" data-step={i} data-p={STAGE_FOCUS[i]} aria-current={i === 0 ? 'step' : undefined}>
@@ -65,7 +82,7 @@ const steps = [
 </section>
 
 <style>
-  .wh { position: relative; height: 900vh; }
+  .wh { position: relative; height: 1100vh; }
   .wh__stage { position: sticky; top: 0; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; }
   .wh__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; touch-action: pan-y; }
   .wh__fx {
@@ -119,6 +136,29 @@ const steps = [
   .wh__bar { grid-column: 2; height: 1px; background: var(--line); margin-top: 6px; position: relative; overflow: hidden; }
   .wh__bar i { position: absolute; inset: 0; background: var(--ink); transform-origin: left; transform: scaleX(var(--p, 0)); }
 
+  /* Outside in daylight: shade the top and the rail side so the white type stays readable. */
+  .wh.is-out .wh__fx {
+    background:
+      linear-gradient(180deg, rgba(13,13,13,.5) 0%, rgba(13,13,13,0) 16%),
+      linear-gradient(270deg, rgba(13,13,13,.45) 0%, rgba(13,13,13,0) 26%),
+      linear-gradient(0deg, rgba(13,13,13,.88) 0%, rgba(13,13,13,0) 42%);
+  }
+
+  /* Pins over the FRP in the plant view: a dot on the object, a label above it. */
+  .wh__pins { position: absolute; inset: 0; pointer-events: none; opacity: var(--pins, 0); }
+  .wh__pins[inert] { visibility: hidden; }
+  .wh__pin {
+    position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 8px; pointer-events: auto;
+    transform: translate(calc(var(--x) * 1px - 6px), calc(var(--y) * 1px - 6px)); text-decoration: none; color: #0f0f0f;
+  }
+  .wh__dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,.35); flex: none; }
+  .wh__pl {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap;
+    background: rgba(255,255,255,.92); padding: 6px 9px; transition: background .2s, color .2s;
+  }
+  .wh__pin:hover .wh__pl, .wh__pin:focus-visible .wh__pl { background: #0b5f3d; color: #f2efe9; }
+  .wh__pin.is-off { visibility: hidden; }
+
   .wh__hint { position: absolute; left: var(--gutter); bottom: 22px; transition: opacity .4s; }
   .wh__note { position: absolute; right: var(--gutter); bottom: 22px; }
   .wh.is-scrolled .wh__hint { opacity: 0; }
@@ -144,9 +184,9 @@ const steps = [
   .wh.is-still .wh__hint { display: none; }
 
   @media (max-width: 900px) {
-    .wh { height: 700vh; }
+    .wh { height: 860vh; }
     .wh__intro { grid-template-columns: 1fr; gap: 20px; }
-    .wh__rail { top: auto; bottom: 46px; left: var(--gutter); right: var(--gutter); transform: none; width: auto; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .wh__rail { top: auto; bottom: 46px; left: var(--gutter); right: var(--gutter); transform: none; width: auto; grid-template-columns: repeat(7, 1fr); gap: 6px; }
     .wh__rail button { grid-template-columns: 1fr; padding: 4px 0; }
     .wh__nm { display: none; }
     .wh__bar { grid-column: 1; }
@@ -168,6 +208,22 @@ const steps = [
   const canvas = root.querySelector('canvas')!;
   const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-step]')];
   const caps = [...root.querySelectorAll<HTMLElement>('[data-cap]')];
+  const pinBox = root.querySelector<HTMLElement>('[data-pins]')!;
+  const pinEls = new Map([...root.querySelectorAll<HTMLElement>('[data-pin]')].map((el) => [el.dataset.pin!, el]));
+  const onPins = (list: { id: string; x: number; y: number; front: boolean }[], on: number) => {
+    pinBox.style.setProperty('--pins', on.toFixed(3));
+    // reachable by keyboard and pointer only once they're readable
+    pinBox.inert = on < 0.5;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    for (const p of list) {
+      const el = pinEls.get(p.id);
+      if (!el) continue;
+      el.style.setProperty('--x', p.x.toFixed(1));
+      el.style.setProperty('--y', p.y.toFixed(1));
+      el.classList.toggle('is-off', !p.front || p.x < 0 || p.x > w - 40 || p.y < 70 || p.y > h - 60);
+    }
+  };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (still) root.classList.add('is-still');
 
@@ -181,6 +237,7 @@ const steps = [
         b.style.setProperty('--p', i < stage ? '1' : '0');
       });
       caps.forEach((c) => c.classList.toggle('is-on', Number(c.dataset.cap) === stage));
+      root.classList.toggle('is-out', stage >= 5);
     }
     buttons[stage].style.setProperty('--p', still ? '1' : frac.toFixed(3));
   };
@@ -201,7 +258,7 @@ const steps = [
 
   import('../scripts/winding')
     .then(({ createWinding }) => {
-      const api = createWinding(canvas, { still, onStage, intro: progress() < 0.02, onReady: reveal });
+      const api = createWinding(canvas, { still, onStage, onPins, intro: progress() < 0.02, onReady: reveal });
       // Dev aid: window.__hero.jump(p) snaps the scene to a scroll progress.
       if (import.meta.env.DEV) (window as unknown as { __hero: typeof api }).__hero = api;
       if (still) {
