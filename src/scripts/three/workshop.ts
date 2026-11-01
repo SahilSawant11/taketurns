@@ -1,13 +1,24 @@
 /**
- * The workshop behind the machine: a gantry crane, pallet racking, finished
- * tanks waiting for dispatch, pendant lamps and high windows. Dark, simple
- * shapes that the fog turns into silhouettes; they only exist to give the
- * machine a room and a sense of scale. No shadows.
+ * The workshop round the machine. Modelled in Blender (scripts/blender/
+ * workshop.py → public/models/workshop.glb): a portal-frame shop with roof
+ * trusses, an overhead crane, window strips, skylights, high-bay lamps, a
+ * roof opening with sliding hatch doors over the machine, and a shop floor
+ * dressed for filament winding. Until it loads (or if it can't) the simple
+ * procedural room below stands in. Either way the fog turns it into
+ * silhouettes; it's there for a sense of place and scale. No shadows.
  */
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+
+const WINDOW = new THREE.Color('#8ea3b4');
+const SKY = new THREE.Color('#a9bccb');
+const LAMP = new THREE.Color('#ffe0b0');
 
 export function createWorkshop(floorY: number) {
   const g = new THREE.Group();
+  const proc = new THREE.Group(); // the procedural stand-in
+  g.add(proc);
   const steel = new THREE.MeshStandardMaterial({ color: '#1b1d1e', metalness: 0.5, roughness: 0.6 });
   const yellow = new THREE.MeshStandardMaterial({ color: '#4a3f1c', metalness: 0.3, roughness: 0.6 }); // crane paint, dulled
   const tankMat = new THREE.MeshStandardMaterial({ color: '#1a3326', roughness: 0.45, metalness: 0.05 });
@@ -20,7 +31,7 @@ export function createWorkshop(floorY: number) {
   const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
     const o = new THREE.Mesh(geo(new THREE.BoxGeometry(w, h, d)), m);
     o.position.set(x, y, z);
-    g.add(o);
+    proc.add(o);
     return o;
   };
 
@@ -69,7 +80,7 @@ export function createWorkshop(floorY: number) {
           inst.setMatrixAt(k++, m.compose(p, q, s));
         }
     inst.count = k;
-    g.add(inst);
+    proc.add(inst);
   }
 
   // Finished vertical tanks awaiting dispatch, back right.
@@ -81,7 +92,7 @@ export function createWorkshop(floorY: number) {
     dome.position.set(x, floorY + h + 0.4, z);
     const skirt = new THREE.Mesh(geo(new THREE.CylinderGeometry(r * 0.96, r * 0.96, 0.4, 48)), steel);
     skirt.position.set(x, floorY + 0.2, z);
-    g.add(body, dome, skirt);
+    proc.add(body, dome, skirt);
   };
   tank(6.5, -15.5, 1.4, 5.2);
   tank(9.8, -16.5, 1.2, 4.4);
@@ -100,7 +111,7 @@ export function createWorkshop(floorY: number) {
     disc.position.set(x, y - 0.15, z);
     const cord = new THREE.Mesh(cordGeo, steel);
     cord.position.set(x, y + 2.15, z);
-    g.add(shade, disc, cord);
+    proc.add(shade, disc, cord);
   }
 
   // Depth haze: soft cards of background colour between the machine and the
@@ -127,14 +138,57 @@ export function createWorkshop(floorY: number) {
     air.push(card);
   }
 
+  // The Blender model: glow materials are drawn unlit at the current light level.
+  let level = 0;
+  const glows: { mat: THREE.MeshBasicMaterial; base: THREE.Color; k: number }[] = [];
+  const hatches: { o: THREE.Object3D; x: number; dir: number; w: number }[] = [];
+  new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/workshop.glb`)
+    .then((gltf) => {
+      gltf.scene.position.y = floorY;
+      gltf.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        disposables.push(m.geometry);
+        const name = (m.material as THREE.Material).name;
+        const glow = name.includes('glow_window') ? [WINDOW, 0.55] : name.includes('glow_sky') ? [SKY, 0.32] : name.includes('glow_lamp') ? [LAMP, 3.2] : null;
+        if (glow) {
+          (m.material as THREE.Material).dispose();
+          const mat = new THREE.MeshBasicMaterial({ color: (glow[0] as THREE.Color).clone().multiplyScalar((glow[1] as number) * level) });
+          glows.push({ mat, base: glow[0] as THREE.Color, k: glow[1] as number });
+          disposables.push(mat);
+          m.material = mat;
+        } else disposables.push(m.material as THREE.Material);
+      });
+      for (const [name, dir] of [['ws_hatch_l', -1], ['ws_hatch_r', 1]] as const) {
+        const o = gltf.scene.getObjectByName(name);
+        if (!o) continue;
+        const box = new THREE.Box3().setFromObject(o);
+        hatches.push({ o, x: o.position.x, dir, w: box.max.x - box.min.x });
+      }
+      g.remove(proc);
+      g.add(gltf.scene);
+    })
+    .catch(() => {}); // keep the stand-in
+
   return {
     object: g,
+    /** Whether the roof opening has doors (the model); if not, the caller reveals the opening itself. */
+    hasHatch: () => hatches.length > 0,
+    /** 0 shut → 1 the roof hatch doors slid fully apart. */
+    setHatch(k: number) {
+      const e = k * k * (3 - 2 * k);
+      hatches.forEach((h) => (h.o.position.x = h.x + h.dir * h.w * 0.98 * e));
+    },
     /** Haze cards: not surfaces, so keep them out of depth/normal passes. */
     air,
     /** 0 dark → 1 normal, for the intro and the hand-off. */
     setLevel(k: number) {
+      level = k;
       lampMat.color.set('#ffe0b0').multiplyScalar(3.2 * k);
       windowMat.color.set('#8ea3b4').multiplyScalar(0.55 * k);
+      glows.forEach((gl) => gl.mat.color.copy(gl.base).multiplyScalar(gl.k * k));
     },
     dispose() {
       disposables.forEach((d) => d.dispose());

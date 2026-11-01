@@ -225,9 +225,9 @@ export function createWinding(
     m.scale.set(1, span.length(), 1);
   };
   // The roof opens to daylight above the bay.
-  const ROOF_Y = FLOOR_Y + 13;
+  const ROOF_Y = FLOOR_Y + 13.9; // just above the workshop's roof opening (scripts/blender/workshop.py)
   const skyMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#f4f8fb').multiplyScalar(4), fog: false });
-  const roofGap = new THREE.Mesh(new THREE.PlaneGeometry(7, 9), skyMat);
+  const roofGap = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 5.6), skyMat);
   roofGap.rotation.x = Math.PI / 2;
   roofGap.position.set(-1.5, ROOF_Y, 0);
   roofGap.visible = false;
@@ -534,7 +534,9 @@ export function createWinding(
     // the roof opens as the section rises; daylight pours in
     const open = s4 ? smooth(clamp01((work - 0.55) / 0.3)) : 0;
     roofGap.visible = open > 0.001;
-    roofGap.scale.set(open, 1, 1);
+    // the model's hatch doors slide apart over the opening; the stand-in just reveals it
+    roofGap.scale.set(workshop.hasHatch() ? 1 : open, 1, 1);
+    workshop.setHatch(open);
     daylight.intensity = 4 * open;
 
     // Cure: the heater bank comes down during the camera move, glows while the
