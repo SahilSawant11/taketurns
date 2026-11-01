@@ -15,6 +15,8 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { PASSES, SPOOL, laminateMaterial, laminateUniforms, spoolProfile } from './vessel';
 
 /** Top flange of the scrubber: where the section's lower flange seats. */
@@ -239,6 +241,10 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   };
 
   // ---- The scrubber ----
+  // Modelled in Blender with baked ambient occlusion (scripts/blender/scrubber.py →
+  // public/models/scrubber.glb). The plant is built during curing, so the model
+  // has plenty of time to arrive; until it does (or if it can't), this
+  // procedural stand-in shows instead.
   const tower = new THREE.Group();
   scene.add(tower);
   add(new THREE.CylinderGeometry(3.2, 3.3, 0.4, 48), concrete, 0, 0.2, 0, tower); // plinth
@@ -280,15 +286,30 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     for (let i = 0; i < 14; i++) hoops.setMatrixAt(i, m.compose(new THREE.Vector3(0.05, 3 + i * 0.6, 0), q, new THREE.Vector3(1, 1, 1)));
     ladder.add(hoops);
   }
-  // recirculation: pump at the base, pipe up to the spray header
+  // recirculation: pump at the base, pipe up to the spray header's nozzle
   add(new RoundedBoxGeometry(1.0, 0.7, 0.7, 2, 0.08), steelGrey, -3.4, 0.75, 1.2, tower);
   {
     const path = new THREE.CurvePath<THREE.Vector3>();
-    const pts = [new THREE.Vector3(-3.4, 1.0, 1.2), new THREE.Vector3(-3.4, 8.6, 1.2), new THREE.Vector3(-1.8, 8.6, 1.0)];
+    const pts = [new THREE.Vector3(-3.4, 0.85, 1.2), new THREE.Vector3(-3.4, 8.6, 1.2), new THREE.Vector3(-2.19, 8.6, 1.215)];
     path.add(new THREE.LineCurve3(pts[0], pts[1]));
     path.add(new THREE.LineCurve3(pts[1], pts[2]));
-    add(new THREE.TubeGeometry(path, 40, 0.14, 12), frpPale, 0, 0, 0, tower);
+    add(new THREE.TubeGeometry(path, 40, 0.14, 12), frpPale);
   }
+  new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(`${import.meta.env.BASE_URL}models/scrubber.glb`.replace(/\/+/g, '/'))
+    .then((gltf) => {
+      gltf.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.castShadow = m.receiveShadow = true;
+        keep(m.geometry);
+        (Array.isArray(m.material) ? m.material : [m.material]).forEach((mt) => keep(mt));
+      });
+      scene.add(gltf.scene);
+      scene.remove(tower);
+    })
+    .catch(() => {}); // keep the stand-in
 
   // ---- Ducting: from the process building to the scrubber's inlet, via a fan ----
   const bx = 16;
@@ -301,7 +322,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
       new THREE.Vector3(bx - 2.5, 6.4, 1.5),
       new THREE.Vector3(5.6, 6.4, 1.5),
       new THREE.Vector3(5.6, 2.6, 1.5),
-      new THREE.Vector3(TOWER_R - 0.2, 2.6, 0.6),
+      new THREE.Vector3(2.8, 2.6, 0.75), // the inlet nozzle's flange
     ];
     const bend = 1.0;
     const towards = (a: THREE.Vector3, b: THREE.Vector3, d: number) => a.clone().add(b.clone().sub(a).setLength(d));
