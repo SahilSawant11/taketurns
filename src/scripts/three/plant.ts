@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PASSES, SPOOL, laminateMaterial, laminateUniforms, spoolProfile } from './vessel';
 
 /** Top flange of the scrubber: where the section's lower flange seats. */
@@ -166,6 +167,37 @@ function createPlumes(sources: { at: THREE.Vector3; n: number; rate: number; ris
   return { object: points, uniforms, dispose: () => (geo.dispose(), mat.dispose()) };
 }
 
+/** Brightness of the baked ground, drawn unlit, to sit with the lit buildings. */
+const GROUND_GAIN = 0.92;
+
+/** The average colour round the edge of the baked ground, for the plain ground beyond it. */
+function edgeColour(tex: THREE.Texture | null) {
+  const c = new THREE.Color('#8b8a7a');
+  const img = tex?.image as CanvasImageSource & { width: number; height: number } | undefined;
+  if (!img?.width) return c;
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 16;
+    const g = cv.getContext('2d')!;
+    g.drawImage(img, 0, 0, img.width, img.height, 0, 0, 16, 16);
+    const d = g.getImageData(0, 0, 16, 16).data;
+    let r = 0, gr = 0, b = 0, n = 0;
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 16; x++) {
+        if (x > 0 && x < 15 && y > 0 && y < 15) continue; // edge pixels only
+        const i = (y * 16 + x) * 4;
+        r += d[i];
+        gr += d[i + 1];
+        b += d[i + 2];
+        n++;
+      }
+    c.setRGB(r / n / 255, gr / n / 255, b / n / 255, THREE.SRGBColorSpace).multiplyScalar(GROUND_GAIN);
+  } catch {
+    // keep the default
+  }
+  return c;
+}
+
 export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   const scene = new THREE.Scene();
   const disposables: { dispose(): void }[] = [];
@@ -210,12 +242,18 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   scene.add(new THREE.HemisphereLight('#bcd3ea', '#6f6a5c', 0.55));
 
   // ---- Ground ----
+  // The estate (ground, buildings, tanks, rack, chimneys) is modelled in Blender
+  // (scripts/blender/estate.py → public/models/estate.glb). Until it loads, or if
+  // it can't, this procedural stand-in shows; it all lives in one group so it
+  // can be swapped out in one go.
+  const estate = new THREE.Group();
+  scene.add(estate);
   const G = 900;
   const groundMat = keep(new THREE.MeshStandardMaterial({ map: keep(groundTexture(G)), roughness: 0.95 }));
   const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(G, G)), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  scene.add(ground);
+  estate.add(ground);
 
   // ---- Materials ----
   const frp = keep(new THREE.MeshPhysicalMaterial({ color: '#1d7a4c', roughness: 0.34, clearcoat: 0.8, clearcoatRoughness: 0.12 }));
@@ -227,7 +265,8 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   const brick = keep(new THREE.MeshStandardMaterial({ color: '#8a5544', roughness: 0.85 }));
   const steelGrey = keep(new THREE.MeshStandardMaterial({ color: '#7d8287', roughness: 0.6, metalness: 0.4 }));
 
-  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = scene) => {
+  let into: THREE.Object3D = scene; // where add() and ring() put things by default
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = into) => {
     const m = new THREE.Mesh(keep(geo), mat);
     m.position.set(x, y, z);
     m.castShadow = m.receiveShadow = true;
@@ -235,7 +274,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     return m;
   };
   /** A flange ring on a vertical axis (y), centred at height y. */
-  const ring = (rIn: number, rOut: number, t: number, y: number, mat: THREE.Material = frp, parent: THREE.Object3D = scene) => {
+  const ring = (rIn: number, rOut: number, t: number, y: number, mat: THREE.Material = frp, parent: THREE.Object3D = into) => {
     const sh = [new THREE.Vector2(rIn, -t / 2), new THREE.Vector2(rOut, -t / 2), new THREE.Vector2(rOut, t / 2), new THREE.Vector2(rIn, t / 2), new THREE.Vector2(rIn, -t / 2)];
     return add(new THREE.LatheGeometry(sh, 72), mat, 0, y, 0, parent);
   };
@@ -297,7 +336,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   }
   new GLTFLoader()
     .setMeshoptDecoder(MeshoptDecoder)
-    .loadAsync(`${import.meta.env.BASE_URL}models/scrubber.glb`.replace(/\/+/g, '/'))
+    .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/scrubber.glb`)
     .then((gltf) => {
       gltf.scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -313,8 +352,8 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
 
   // ---- Ducting: from the process building to the scrubber's inlet, via a fan ----
   const bx = 16;
-  add(new THREE.BoxGeometry(11, 9, 14), concrete, bx + 3, 4.5, 3); // process building
-  add(new THREE.BoxGeometry(11.4, 0.4, 14.4), steelGrey, bx + 3, 9.2, 3); // roof edge
+  add(new THREE.BoxGeometry(11, 9, 14), concrete, bx + 3, 4.5, 3, estate); // process building
+  add(new THREE.BoxGeometry(11.4, 0.4, 14.4), steelGrey, bx + 3, 9.2, 3, estate); // roof edge
   {
     const ductR = 0.75;
     const path = new THREE.CurvePath<THREE.Vector3>();
@@ -384,7 +423,8 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     sling.rotation.z = s * 0.5;
   }
 
-  // ---- The estate ----
+  // ---- The estate (procedural stand-in) ----
+  into = estate;
   const r = rng(21);
   // Buildings: plain sheds and blocks, pale walls with metal roofs.
   {
@@ -418,7 +458,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
       roofs.setColorAt(i, c.set(roofCols[Math.floor(r() * roofCols.length)]));
     });
     walls.castShadow = walls.receiveShadow = roofs.castShadow = roofs.receiveShadow = true;
-    scene.add(walls, roofs);
+    estate.add(walls, roofs);
   }
   // Trees along the roads: a green belt.
   {
@@ -442,14 +482,14 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
       trees.setColorAt(i, c.setHSL(0.26 + r() * 0.06, 0.35 + r() * 0.15, 0.24 + r() * 0.1));
     }
     trees.castShadow = true;
-    scene.add(trees);
+    estate.add(trees);
   }
   // Tank farm: FRP chemical storage tanks in a bund.
   const tankFarm = new THREE.Vector3(-34, 0, -12);
   {
     const bund = new THREE.Group();
     bund.position.copy(tankFarm);
-    scene.add(bund);
+    estate.add(bund);
     add(new THREE.BoxGeometry(34, 0.3, 22), concrete, 0, 0.15, 0, bund);
     for (const [w, d, x, z] of [[34, 0.4, 0, -11], [34, 0.4, 0, 11], [0.4, 22, -17, 0], [0.4, 22, 17, 0]] as const)
       add(new THREE.BoxGeometry(w, 1.2, d), concrete, x, 0.6, z, bund);
@@ -495,6 +535,53 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     for (let k = 0; k < 2; k++) ring(rad * 0.8, rad * 0.92, 0.5, h - 1 - k * 1.4, k ? steelGrey : brick).position.set(x, h - 1 - k * 1.4, z);
     chimneys.push(new THREE.Vector3(x, h, z));
   }
+  into = scene;
+
+  // ---- The estate from Blender, and its trees ----
+  const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  Promise.all([loader.loadAsync(`${base}models/estate.glb`), fetch(`${base}models/estate-trees.json`).then((r) => r.json() as Promise<{ trees: number[][] }>)])
+    .then(([gltf, { trees }]) => {
+      let groundTex: THREE.Texture | null = null;
+      gltf.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        keep(m.geometry);
+        const mat = m.material as THREE.MeshStandardMaterial;
+        if (mat.map) {
+          // the ground: its texture is already lit (baked with the sun), so draw it unlit
+          groundTex = mat.map;
+          m.material = keep(new THREE.MeshBasicMaterial({ map: mat.map, color: new THREE.Color(GROUND_GAIN, GROUND_GAIN, GROUND_GAIN) }));
+          keep(mat.map);
+          mat.dispose();
+          return;
+        }
+        keep(mat);
+        m.castShadow = m.receiveShadow = true;
+      });
+      // beyond the baked square: plain ground in the colour of its edge
+      const outer = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshBasicMaterial({ color: edgeColour(groundTex) })));
+      outer.rotation.x = -Math.PI / 2;
+      outer.position.y = -0.05;
+      // trees: instanced clusters of a few low-poly crowns
+      const crown = (r: number, x: number, y: number, z: number) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z);
+      const parts = small ? [crown(1, 0, 0.95, 0)] : [crown(1, 0, 1.0, 0), crown(0.7, 0.6, 0.75, 0.25), crown(0.62, -0.45, 0.8, -0.4)];
+      const treeGeo = keep(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))));
+      parts.forEach((g) => g.dispose());
+      const list = small ? trees.filter((_, i) => i % 2 === 0) : trees;
+      const inst = new THREE.InstancedMesh(treeGeo, keep(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true })), list.length);
+      const mtx = new THREE.Matrix4();
+      const q = new THREE.Quaternion();
+      const c = new THREE.Color();
+      list.forEach(([x, z, sc, h], i) => {
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h * 6.28);
+        inst.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.85, sc * 0.95, sc * 0.85)));
+        inst.setColorAt(i, c.setHSL(0.24 + h * 0.07, 0.32 + h * 0.15, 0.22 + h * 0.09));
+      });
+      scene.remove(estate);
+      scene.add(gltf.scene, outer, inst);
+    })
+    .catch(() => {}); // keep the stand-in
 
   // ---- Plumes ----
   const plumes = createPlumes([
