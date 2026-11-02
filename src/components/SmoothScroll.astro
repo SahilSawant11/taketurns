@@ -1,17 +1,17 @@
 ---
-/** Lenis smooth scrolling for the whole site; off for reduced motion. */
+/** Lenis smooth scrolling for the whole site, run on GSAP's ticker and wired to ScrollTrigger; off for reduced motion. */
 ---
 <script>
   import Lenis from 'lenis';
+  import { gsap, ScrollTrigger, reducedMotion } from '../scripts/motion';
 
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, anchors: true });
+  if (!reducedMotion) {
+    const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, anchors: true, autoRaf: false });
     (window as unknown as { lenis: Lenis }).lenis = lenis;
-    const raf = (t: number) => {
-      lenis.raf(t);
-      requestAnimationFrame(raf);
-    };
-    requestAnimationFrame(raf);
+    // One loop: Lenis steps on GSAP's ticker, and ScrollTrigger reads Lenis's scroll.
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add((time) => lenis.raf(time * 1000));
+    gsap.ticker.lagSmoothing(0);
     // Pause while the full-screen menu locks scrolling.
     new MutationObserver(() => {
       document.documentElement.style.overflow === 'hidden' ? lenis.stop() : lenis.start();
