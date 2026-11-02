@@ -101,7 +101,8 @@ const LEAF_COMMON = /* glsl */ `
 
 const LEAF_FRAG = /* glsl */ `
   uniform vec3 uTop, uBack, uVein, uGlow, uKey;
-  uniform float uTrans, uFade;
+  uniform float uTrans, uFade, uUseTex;
+  uniform sampler2D uDetail;
   varying vec2 vLeaf;
   float halfW(float y) {
     float t = clamp(y, 0.0, 1.0);
@@ -124,6 +125,9 @@ function leafUniforms(back: THREE.Vector3) {
     uKey: { value: back.clone().normalize() }, // the light behind the leaf, for translucency
     uTrans: { value: 1 },
     uFade: { value: 1 },
+    // the peepal from Blender (scripts/blender/leaf.py): R albedo, G veins, B margin, A cutout
+    uDetail: { value: null as THREE.Texture | null },
+    uUseTex: { value: 0 },
   };
 }
 
@@ -159,7 +163,16 @@ function leafMaterial(uniforms: LeafUniforms) {
       .replace(
         '#include <map_fragment>',
         `float leafA, leafVein;
-        {
+        if (uUseTex > 0.5) {
+          // the peepal: silhouette, veins and shading detail baked in Blender
+          vec4 dt = texture2D(uDetail, vec2(vLeaf.x + 0.5, (vLeaf.y + 0.2) / 1.2));
+          leafA = clamp((dt.a - 0.5) / (fwidth(dt.a) + 1e-4) + 0.5, 0.0, 1.0);
+          if (leafA < 0.02) discard;
+          leafVein = dt.g;
+          vec3 c = gl_FrontFacing ? uTop : uBack;
+          c *= dt.r / 0.86;
+          diffuseColor.rgb = mix(c, uVein, leafVein * 0.55);
+        } else {
           float x = vLeaf.x, y = vLeaf.y;
           float ax = abs(x);
           float w = halfW(y);
@@ -202,6 +215,35 @@ function leafMaterial(uniforms: LeafUniforms) {
       );
   };
   return mat;
+}
+
+/** The peepal's baked textures, shared by every leaf; materials switch to them once they've arrived. */
+let leafTex: Promise<{ detail: THREE.Texture; normal: THREE.Texture }> | null = null;
+function loadLeafTextures() {
+  if (!leafTex) {
+    const base = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/leaf/`;
+    const loader = new THREE.TextureLoader();
+    const load = (name: string) =>
+      loader.loadAsync(base + name).then((t) => {
+        t.colorSpace = THREE.NoColorSpace; // data, not colour
+        t.anisotropy = 8;
+        return t;
+      });
+    leafTex = Promise.all([load('leaf-detail.webp'), load('leaf-normal.webp')]).then(([detail, normal]) => ({ detail, normal }));
+  }
+  return leafTex;
+}
+/** Give a leaf material the peepal (keeps the procedural leaf if the textures can't load). */
+function usePeepal(mat: THREE.MeshPhysicalMaterial, u: LeafUniforms) {
+  loadLeafTextures()
+    .then(({ detail, normal }) => {
+      u.uDetail.value = detail;
+      u.uUseTex.value = 1;
+      mat.normalMap = normal;
+      mat.normalScale.set(1.3, 1.3);
+      mat.needsUpdate = true;
+    })
+    .catch(() => {});
 }
 
 // Pale and backlit over dark and green sections, deep green over bone ones.
@@ -266,6 +308,7 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   // The leaf.
   const U = leafUniforms(backPos);
   const mat = leafMaterial(U);
+  usePeepal(mat, U);
   const geo = leafGeometry(90);
   const leaf = new THREE.Mesh(geo, mat);
   leaf.frustumCulled = false;
@@ -282,7 +325,9 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   ].map((m, i) => {
     const u = leafUniforms(backPos);
     u.uS.value = m.s;
-    const mesh = new THREE.Mesh(smallGeo, leafMaterial(u));
+    const mm = leafMaterial(u);
+    usePeepal(mm, u);
+    const mesh = new THREE.Mesh(smallGeo, mm);
     mesh.frustumCulled = false;
     mesh.renderOrder = 1;
     scene.add(mesh);
