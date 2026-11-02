@@ -48,7 +48,7 @@ To enable sending, copy `.env.example` to `.env` and set `PUBLIC_INQUIRY_ENDPOIN
 
 The scene is generated in code, so there are no model files.
 
-- **Timeline:** a single loop time drives it, through five stages: mandrel → surface veil → winding → curing → finished vessel. Timings are in `STAGES`.
+- **Timeline:** scroll progress drives it through seven stages: mandrel → surface veil → winding → curing → off the mandrel → into service → in the plant. Timings are in `STAGE_P` (`src/scripts/three/stages.ts`).
 - **How the bands are drawn:** a fragment shader lays down the helical bands. `N` sets bands per direction, and `DU` sets turns per pass, which works out to about a 58° winding angle.
 - **Reduced motion:** visitors who prefer reduced motion get still frames. The step buttons still work.
 - **No WebGL:** the steps fall back to a text walkthrough.
@@ -56,24 +56,32 @@ The scene is generated in code, so there are no model files.
 - **Idle life:** the bare mandrel turns slowly before winding starts, the camera drifts and follows the mouse a little, dust drifts through the key light's shaft (`src/scripts/three/atmosphere.ts`), and the finished vessel sways on a slow turntable.
 - **Fibre tow:** `src/scripts/three/tow.ts` runs the roving off the creel spool, under the wet-out roller, through the payout eye and onto the mandrel at the band's head. Its texture scrolls with the fibre feed.
 - **Cinematography:** midway through winding, the camera swings in on an arc to a close-up of the laying point, with depth of field (`BokehPass`, only on during the close-up), then pulls back out to show the full pattern. Soft bloom picks out clear-coat glints and the heater tubes.
-- **Stages:** the surface veil wraps on along the mandrel in overlapping turns (`vessel.ts`). An IR heater bank (`src/scripts/three/heater.ts`) lowers in for curing, with faint vapour off the laminate. On the finished vessel, nozzles and lugs rise out of the shell, the manway slides out of the dome and the saddles rise through the floor, each settling into place.
+- **Stages:** the surface veil wraps on along the mandrel in overlapping turns (`vessel.ts`). An IR heater bank (`src/scripts/three/heater.ts`) lowers in for curing, with faint vapour off the laminate. The wound part is an open, flanged stack section (`spoolProfile`), not a closed tank.
+- **Off the mandrel:** the machine fades, the section is topcoated and flanged and sits on timber cradles. The crane hook comes down and slings onto two lugs. The section is upended about its lower end and lifted towards a roof opening full of daylight, and the frame whites out (`uFlash` in the grade pass).
+- **Outside:** under the white-out the composer swaps to a second scene, `src/scripts/three/plant.ts`: a daytime industrial estate (grey-box, procedural). The section is lowered onto an FRP fume scrubber as its stack and bolted, and the hook lets go. Then the system starts: the neighbours' brick chimneys keep putting out brown haze, while our stack gives a faint white wisp. The plant is built and its shaders compiled during curing, so the swap doesn't stutter.
+- **Blender models:** the scrubber is modelled by `scripts/blender/scrubber.py` (bevelled parts, ambient occlusion baked with Cycles into the glTF occlusion map). To rebuild it: `blender -b -P scripts/blender/scrubber.py -- /tmp/scrubber.glb && npx gltfpack -i /tmp/scrubber.glb -o public/models/scrubber.glb -cc -kn -km`. It loads with meshopt decoding during curing. If it can't load, a procedural stand-in shows instead.
+- **The workshop:** `scripts/blender/workshop.py` builds a portal-frame shop: I-section columns, Pratt roof trusses, purlins trimmed round a roof opening over the machine, sliding hatch doors (`ws_hatch_l`/`ws_hatch_r`, slid by `setHatch`), window strips, skylights, high-bay lamps, an overhead crane parked down the bay, and a filament-winding shop floor (roving racks, resin drums, FRP pipe, finished duct sections, walkway lines). Materials named `ws_glow_*` are drawn unlit at the scene's light level. To rebuild it: `blender -b -P scripts/blender/workshop.py -- /tmp/workshop.glb && npx gltfpack -i /tmp/workshop.glb -o public/models/workshop.glb -cc -kn -km`. Shared mesh helpers live in `scripts/blender/kit.py`.
+- **The estate:** `scripts/blender/estate.py` lays out a road grid, compound plots and buildings typical of an Indian industrial estate: portal-frame sheds with ridge ventilators and skylights, north-light sawtooth factories, flat-roofed blocks with black rooftop water tanks, container yards, the tank farm, the glass-lined tanks, the pipe rack, chimneys and the process building. The ground is painted, then baked with Cycles under the same sun as three.js, so every shadow is in one unlit texture. Trees are instanced in three.js from `public/models/estate-trees.json`, but they're in the bake so their shadows are too. To rebuild it: `blender -b -P scripts/blender/estate.py -- /tmp/estate.glb public/models/estate-trees.json && npx gltfpack -i /tmp/estate.glb -o public/models/estate.glb -cc -kn -km`. Plume and pin positions in `plant.ts` match the layout constants at the top of the script.
+- **In the plant:** the camera rises to a sky view. HTML pins (`.wh__pin` in `WindingHero.astro`) track points from `plant.pins` and link to the matching solution or application. They're only focusable once faded in.
 - **Workshop:** `src/scripts/three/workshop.ts` puts a gantry crane, racking, stored tanks, pendant lamps and high windows behind the machine. Layers of depth haze (kept out of the AO and depth-of-field passes) turn them into distant silhouettes.
-- **Hand-off:** as the hero scrolls out (`setExit`), the camera drops and tilts up so the vessel stays in the part of the canvas still on screen, the lights close down, and the lower frame fades into the next section's colour (`--exit` on `.wh__fx::before`). The fittings are all seated by about 75% of the Finished stage, which leaves a short hold on the product.
+- **Hand-off:** as the hero scrolls out (`setExit`), the camera drops and tilts up so the vessel stays in the part of the canvas still on screen, the lights close down, and the lower frame fades into the next section's colour (`--exit` on `.wh__fx::before`). 
 - **Adaptive quality:** if frames average slower than ~45 fps, it steps down once at a time (AO off → lower pixel ratio, no bloom or depth of field → smaller shadow map). In dev, each step logs `[hero] quality tier N`.
 - **Rendering:** it renders every frame while visible, and pauses when off-screen or when the tab is hidden. Drag-to-rotate works only with a mouse, so touch scrolling isn't hijacked.
 
 See `OWNER-INPUTS.md` for everything still needed from the owner.
 
-## Floating woven glass cloth (home page)
+## The leaf (home page)
 
-A square of woven glass-fibre cloth floats down the home page on a fixed, click-through canvas (`src/components/FloatingFabric.astro` + `src/scripts/fabric.ts`).
+A single leaf follows the home page on a fixed, click-through canvas (`src/components/FloatingLeaf.astro` + `src/scripts/leaf.ts`). It stands for clean air, which is what the plant's FRP is there to protect.
 
-- **Weave:** computed per pixel in the shader, so it stays sharp at any size. It uses the same palette and filament detail as the wound vessel: pale glass tows over resin green, crimped where they cross, with frayed ends. There are no image files.
-- **Opting in:** a section opts in with `data-float="<pose>"`. Poses set position, rotation, scale, curl, twist and ripple, relative to the section's top edge, and scroll with the section. Between sections the cloth tumbles into the next pose.
-- **Positioning from a child:** `data-float-ref=".selector"` lays a pose out from a child element instead of the section top.
-- **Hiding:** `data-float="hidden"` markers fade the cloth out, after the hero and before the footer.
-- **Phones:** narrow screens use a small corner version.
-- **Reduced motion:** the cloth snaps to each pose without easing.
+- **Placement:** it rests beside each section's headline. Between sections it glides down to the next one the way a leaf falls: swinging side to side, banking into each swing, and turning over once mid-fall.
+- **Shape:** a peepal leaf (Ficus religiosa): heart-shaped base, long drip tip. `scripts/blender/leaf.py` draws its outline and venation and bakes a high-poly relief with Cycles into `public/models/leaf/` (`leaf-normal.webp` for the vein relief, and `leaf-detail.webp`: R albedo, G veins, B margin, A cutout). The page bends a subdivided plane in the vertex shader (midrib fold, lengthwise curl, twist, a flutter wave from stem to tip) and tints the textures per section. Until they load, a simple procedural leaf stands in. To rebuild it: `blender -b -P scripts/blender/leaf.py -- public/models/leaf /tmp/leaf-preview.png`.
+- **Tone:** pale and backlit over dark and green sections, with the veins showing dark against the light. Deep green over bone sections.
+- **Life:** a slow idle flutter and turn. Scrolling fast stirs it like wind. On desktop, a fast cursor nearby is a breeze that pushes it away. A soft shadow on the page lifts and fades in flight, and a few small leaves drift down at depth with scroll parallax.
+- **Finale:** it waits above the screen during "Show the work", then drifts down onto the finale's stage (`.finale__stage`), rocks once, and lies still on a contact shadow.
+- **Opting in:** a section opts in with `data-float="<pose>"` (poses are in `poseFor`). `data-float-ref` gives a pose its own stage. `data-float="hidden"` markers fade it out after the hero and before the footer.
+- **Phones:** it's smaller and sits above each section's label.
+- **Reduced motion:** it snaps to each pose with no flutter.
 - **Dev check:** in dev, add `?settle` to the URL to snap it to exact poses.
 
 Smooth scrolling is Lenis (`src/components/SmoothScroll.astro`), on every page and off for reduced motion.

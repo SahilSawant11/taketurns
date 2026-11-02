@@ -26,6 +26,26 @@ export function vesselProfile(R = 1, half = 2, head = 0.5, pole = 0.2) {
   return pts;
 }
 
+/** The hero's wound part: an open, flanged stack section. */
+export const SPOOL = { r: 1, half: 2.2, flange: 1.42 };
+
+/**
+ * Stack section profile: a straight cylinder ±half with a short rounded lip at
+ * each end where the bands turn round on the mandrel (hidden by the flanges
+ * once they're on).
+ */
+export function spoolProfile(R = SPOOL.r, half = SPOOL.half, lip = 0.07) {
+  const pts: THREE.Vector2[] = [];
+  const end = (s: 1 | -1, i: number) => {
+    const a = (i / 6) * (Math.PI / 2);
+    return new THREE.Vector2(R - 0.08 * (1 - Math.sin(a)), s * (half + lip * Math.cos(a)));
+  };
+  for (let i = 0; i <= 6; i++) pts.push(end(-1, i));
+  for (let i = 1; i < 48; i++) pts.push(new THREE.Vector2(R, -half + (i / 48) * 2 * half));
+  for (let i = 6; i >= 0; i--) pts.push(end(1, i));
+  return pts;
+}
+
 /** Interpolated (radius, axial) point at normalised profile position v. */
 export function profileAt(pts: THREE.Vector2[], v: number) {
   const f = THREE.MathUtils.clamp(v, 0, 1) * (pts.length - 1);
