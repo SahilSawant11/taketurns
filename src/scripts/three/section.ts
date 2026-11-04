@@ -87,25 +87,48 @@ const textures: Record<string, (base: string) => THREE.Texture> = {
         g.restore();
       }
     }, 2),
-  // Chopped-strand mat: short fibres at random angles.
+  // Chopped strand mat in resin: straight chopped bundles (a few filaments side by side) lying flat
+  // at every angle, pale and a little milky against the resin. Only ever lighter than the resin, so
+  // their relief reads as raised strands, not creases.
   chopped: (base) =>
     canvasTex((g, s) => {
       g.fillStyle = base;
       g.fillRect(0, 0, s, s);
       const r = rand(7);
-      for (let i = 0; i < 2600; i++) {
-        const x = r() * s;
-        const y = r() * s;
-        const a = r() * Math.PI;
-        const l = 10 + r() * 34;
-        g.strokeStyle = r() > 0.5 ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.10)';
-        g.lineWidth = 0.8;
-        g.beginPath();
-        g.moveTo(x, y);
-        g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-        g.stroke();
+      g.lineCap = 'round';
+      for (let layer = 0; layer < 2; layer++) {
+        // the deeper layer first, softer: strands seen through resin
+        const n = layer === 0 ? 260 : 330;
+        for (let i = 0; i < n; i++) {
+          const x = r() * s;
+          const y = r() * s;
+          const a = r() * Math.PI;
+          const l = 34 + r() * 46; // one chopped length, roughly
+          const fil = 3 + Math.floor(r() * 4); // filaments in the bundle
+          const ux = Math.cos(a);
+          const uy = Math.sin(a);
+          for (let f = 0; f < fil; f++) {
+            const o = (f - (fil - 1) / 2) * 1.3;
+            const ox = -uy * o;
+            const oy = ux * o;
+            const alpha = (layer === 0 ? 0.09 : 0.18) + r() * 0.1;
+            // wrap round the tile so the pattern repeats without a seam
+            for (const dx of [-s, 0, s])
+              for (const dy of [-s, 0, s]) {
+                const sx = x + ox + dx;
+                const sy = y + oy + dy;
+                if (sx < -l || sx > s + l || sy < -l || sy > s + l) continue;
+                g.strokeStyle = `rgba(245,250,240,${alpha})`;
+                g.lineWidth = 0.9;
+                g.beginPath();
+                g.moveTo(sx - (ux * l) / 2, sy - (uy * l) / 2);
+                g.lineTo(sx + (ux * l) / 2, sy + (uy * l) / 2);
+                g.stroke();
+              }
+          }
+        }
       }
-    }, 1.5),
+    }, 1.6),
   // Brushed metal: dense fine streaks in one direction.
   brushed: (base) =>
     canvasTex((g, s) => {
@@ -141,6 +164,39 @@ const textures: Record<string, (base: string) => THREE.Texture> = {
           g.fill();
         }
     }, 1),
+  // Surface veil in resin: a fine, open web of long wavy fibres seen through a glossy resin skin.
+  veil: (base) =>
+    canvasTex((g, s) => {
+      g.fillStyle = base;
+      g.fillRect(0, 0, s, s);
+      const r = rand(23);
+      // a faint cloudiness where the veil is denser
+      for (let i = 0; i < 60; i++) {
+        const x = r() * s;
+        const y = r() * s;
+        const rad = 30 + r() * 90;
+        const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+        grd.addColorStop(0, 'rgba(255,255,255,0.06)');
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grd;
+        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      }
+      g.lineCap = 'round';
+      for (let i = 0; i < 700; i++) {
+        const x = r() * s;
+        const y = r() * s;
+        const a = r() * Math.PI * 2;
+        const l = 140 + r() * 260; // long, continuous filaments: a veil, not a chopped mat
+        const bend = (r() - 0.5) * 70;
+        // mostly pale glass fibres, a few darker where they lie deeper in the resin
+        g.strokeStyle = r() > 0.25 ? `rgba(255,255,255,${0.14 + r() * 0.16})` : `rgba(20,60,35,${0.08 + r() * 0.08})`;
+        g.lineWidth = 0.4 + r() * 0.5;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 - Math.sin(a) * bend, y + Math.sin(a) * l * 0.5 + Math.cos(a) * bend, x + Math.cos(a) * l, y + Math.sin(a) * l);
+        g.stroke();
+      }
+    }, 1.2),
   // Mineral wool: soft, tangled fibres.
   wool: (base) =>
     canvasTex((g, s) => {
@@ -180,11 +236,15 @@ type Look = {
   coatRough?: number;
   aniso?: number;
   opacity?: number;
+  /** light passing into the layer (resin), and how deep it reads */
+  transmission?: number;
+  thickness?: number;
 };
 const LOOK: Record<string, Look> = {
   // FRP
-  liner: { rough: 0.16, metal: 0, coat: 0.8, coatRough: 0.06, opacity: 0.94 },
-  barrier: { tex: 'chopped', relief: 3, rough: 0.42, metal: 0, coat: 0.2 },
+  // resin-rich, with the surface veil inside it: glossy, a little translucent, smooth to the touch
+  liner: { tex: 'veil', relief: 0.25, colour: '#acd3b6', rough: 0.1, metal: 0, coat: 1, coatRough: 0.02, transmission: 0.2, thickness: 0.12 },
+  barrier: { tex: 'chopped', relief: 0.9, rough: 0.3, metal: 0, coat: 0.55, coatRough: 0.08 }, // chopped strand mat in resin
   structural: { tex: 'wound', relief: 6, rough: 0.34, metal: 0, coat: 0.45, coatRough: 0.1 }, // resin over the rovings
   exterior: { rough: 0.3, metal: 0, coat: 0.7, coatRough: 0.08 }, // gel coat
   // Glass-lined steel
@@ -246,6 +306,11 @@ export function buildSection(layers: SectionLayer[]): Section {
       clearcoat: look.coat ?? 0,
       clearcoatRoughness: look.coatRough ?? 0.3,
       anisotropy: look.aniso ?? 0,
+      transmission: look.transmission ?? 0,
+      thickness: look.thickness ?? 0,
+      attenuationColor: new THREE.Color(base),
+      attenuationDistance: 0.4,
+      ior: 1.55, // cured vinyl ester / polyester resin
       transparent: look.opacity !== undefined,
       opacity: look.opacity ?? 1,
     });
