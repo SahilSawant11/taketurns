@@ -142,7 +142,7 @@ export function createWorkshop(floorY: number) {
   let level = 0;
   const glows: { mat: THREE.MeshBasicMaterial; base: THREE.Color; k: number }[] = [];
   const hatches: { o: THREE.Object3D; x: number; dir: number; w: number }[] = [];
-  new GLTFLoader()
+  const loaded = new GLTFLoader()
     .setMeshoptDecoder(MeshoptDecoder)
     .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/workshop.glb`)
     .then((gltf) => {
@@ -174,6 +174,8 @@ export function createWorkshop(floorY: number) {
 
   return {
     object: g,
+    /** Settles once the Blender model is in (or failed and the stand-in stays). */
+    loaded,
     /** Whether the roof opening has doors (the model); if not, the caller reveals the opening itself. */
     hasHatch: () => hatches.length > 0,
     /** 0 shut → 1 the roof hatch doors slid fully apart. */

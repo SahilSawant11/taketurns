@@ -418,13 +418,15 @@ export function createWinding(
   const stageNames = ['Ready', 'Surface veil', 'Winding', 'Curing', 'Complete', 'Complete', 'Complete'];
   const outside = (st: number) => st >= 5;
 
-  // The plant is built on the way (during curing), so it's ready by the time the roof opens.
+  // The plant: built at start-up (see below), so it's ready long before the roof opens.
   let plant: ReturnType<typeof createPlant> | null = null;
   const getPlant = () => {
     if (!plant) {
       plant = createPlant(renderer, small);
       plant.resize(canvas.clientHeight * renderer.getPixelRatio(), camera.fov);
-      renderer.compileAsync(plant.scene, camera).catch(() => {});
+      const p = plant;
+      prep(p.scene);
+      p.loaded.then(() => prep(p.scene)); // its Blender models arrive after it's built
     }
     return plant;
   };
@@ -671,6 +673,19 @@ export function createWinding(
   // ---- Post-processing: multisampled HDR target → AO → AgX output ----
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
   const composer = new EffectComposer(renderer, target);
+  /**
+   * Compile a scene's shaders ahead of time, in parallel where the browser can. With the
+   * composer's target bound: drawn into it, materials skip tone mapping and output linear
+   * colour, which three.js compiles as a different program from the on-screen one, so a
+   * plain compile wouldn't be the program that gets used.
+   */
+  const prep = (s: THREE.Scene) => {
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    const done = renderer.compileAsync(s, camera).catch(() => {});
+    renderer.setRenderTarget(prev);
+    return done;
+  };
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
   const gtao = new GTAOPass(scene, camera, 1, 1);
@@ -834,10 +849,11 @@ export function createWinding(
   frame();
   // Compile every shader before the first frame so the intro doesn't stutter.
   placeCamera(apply(current, 0, 0, intro, exit), 0, intro);
-  renderer
-    .compileAsync(scene, camera)
-    .catch(() => {})
-    .then(() => {
+  workshop.loaded.then(() => prep(scene)); // the Blender shop arrives after the first compile
+  // The plant too, now, before the first frame: built mid-scroll (during curing) its
+  // environment map and ~25 shaders cost a visible ~150 ms stall.
+  if (!opts.still) getPlant();
+  prep(scene).then(() => {
       ready = true;
       render(0);
       opts.onReady?.();

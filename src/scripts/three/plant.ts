@@ -334,7 +334,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     path.add(new THREE.LineCurve3(pts[1], pts[2]));
     add(new THREE.TubeGeometry(path, 40, 0.14, 12), frpPale);
   }
-  new GLTFLoader()
+  const scrubberIn = new GLTFLoader()
     .setMeshoptDecoder(MeshoptDecoder)
     .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/scrubber.glb`)
     .then((gltf) => {
@@ -543,7 +543,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   // ---- The estate from Blender, and its trees ----
   const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  Promise.all([
+  const estateIn = Promise.all([
     loader.loadAsync(`${base}models/estate.glb`),
     fetch(`${base}models/estate-trees.json`).then((r) => r.json() as Promise<{ trees: number[][] }>),
     loader.loadAsync(`${base}models/trees.glb`).catch(() => null), // scripts/blender/trees.py; without it, simple crowns
@@ -644,6 +644,8 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   const seatedY = SEAT_Y + SPOOL.half;
   return {
     scene,
+    /** Settles once the Blender models (scrubber, estate, trees) are in, or have failed and the stand-ins stay. */
+    loaded: Promise.all([scrubberIn, estateIn]).then(() => {}),
     pins,
     seatedY,
     sectionTop: () => section.position.y + SPOOL.half,

@@ -53,16 +53,22 @@ export function createHeater(length = 4.6, radius = 1.78) {
     if ((o as THREE.Mesh).isMesh) o.castShadow = true;
   });
 
+  // The glow's light stays in the scene even while the heater is hidden (at intensity 0):
+  // adding or removing a light changes every lit shader, and three.js would recompile the
+  // whole shop the moment curing starts (a visible stall).
+  const root = new THREE.Group();
+  root.add(group);
   const light = new THREE.PointLight('#ff7a2e', 0, 7, 1.6);
   light.position.set(0, 1.1, -0.5);
-  group.add(light);
+  root.add(light);
 
   return {
-    object: group,
+    object: root,
     /** in: 0 raised out of shot → 1 in place; heat: 0 off → 1 full glow. */
     update(inAmt: number, heat: number) {
       group.visible = inAmt > 0.001;
       group.position.y = 4.2 * (1 - inAmt);
+      light.position.y = 1.1 + group.position.y;
       tubeMat.emissiveIntensity = 7 * heat;
       tubeMat.color.setRGB(0.23 + 0.5 * heat, 0.16 + 0.15 * heat, 0.13);
       light.intensity = 9 * heat;
