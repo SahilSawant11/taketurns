@@ -32,6 +32,39 @@ function canvasTex(draw: (g: CanvasRenderingContext2D, s: number) => void, repea
 }
 const rand = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
+/**
+ * A normal map from a pattern: draw it on mid-grey (lighter = higher), then take the slope
+ * across neighbouring pixels. Gives the rovings, mat, dimples and wool real relief in the light.
+ */
+function normalTex(draw: (g: CanvasRenderingContext2D, s: number) => void, strength: number, repeat = 1) {
+  const s = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d', { willReadFrequently: true })!;
+  draw(g, s);
+  const src = g.getImageData(0, 0, s, s).data;
+  const out = g.createImageData(s, s);
+  const h = (x: number, y: number) => src[(((y + s) % s) * s + ((x + s) % s)) * 4] / 255;
+  for (let y = 0; y < s; y++)
+    for (let x = 0; x < s; x++) {
+      const dx = (h(x + 1, y) - h(x - 1, y)) * strength;
+      const dy = (h(x, y + 1) - h(x, y - 1)) * strength;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * s + x) * 4;
+      out.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
+      out.data[i + 1] = ((dy / len) * 0.5 + 0.5) * 255;
+      out.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      out.data[i + 3] = 255;
+    }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat, repeat);
+  t.anisotropy = 8;
+  return t;
+}
+
 const textures: Record<string, (base: string) => THREE.Texture> = {
   // Continuous roving wound at ± helical angle: crossing bands of fine filaments.
   wound: (base) =>
@@ -127,22 +160,42 @@ const textures: Record<string, (base: string) => THREE.Texture> = {
     }, 1),
 };
 
-/** Surface treatment per layer id. */
-const LOOK: Record<string, { tex?: string; rough: number; metal: number; coat?: number; opacity?: number }> = {
+/** The pattern as height (lighter = higher), for its normal map: each texture drawn on grey, strongly. */
+function drawHeight(kind: string, g: CanvasRenderingContext2D, s: number) {
+  const tmp = textures[kind]('#808080').image as HTMLCanvasElement;
+  g.filter = 'contrast(5)';
+  g.drawImage(tmp, 0, 0, s, s);
+  g.filter = 'none';
+}
+
+/** Surface treatment per layer id, matched to the Blender stills (scripts/blender/renders.py). */
+type Look = {
+  tex?: string;
+  /** relief from the same pattern, and how strong */
+  relief?: number;
+  colour?: string; // instead of the layer's tone (the swatch keeps the tone)
+  rough: number;
+  metal: number;
+  coat?: number;
+  coatRough?: number;
+  aniso?: number;
+  opacity?: number;
+};
+const LOOK: Record<string, Look> = {
   // FRP
-  liner: { rough: 0.32, metal: 0, coat: 0.3, opacity: 0.92 },
-  barrier: { tex: 'chopped', rough: 0.55, metal: 0 },
-  structural: { tex: 'wound', rough: 0.5, metal: 0 },
-  exterior: { rough: 0.45, metal: 0, coat: 0.25 },
+  liner: { rough: 0.16, metal: 0, coat: 0.8, coatRough: 0.06, opacity: 0.94 },
+  barrier: { tex: 'chopped', relief: 3, rough: 0.42, metal: 0, coat: 0.2 },
+  structural: { tex: 'wound', relief: 6, rough: 0.34, metal: 0, coat: 0.45, coatRough: 0.1 }, // resin over the rovings
+  exterior: { rough: 0.3, metal: 0, coat: 0.7, coatRough: 0.08 }, // gel coat
   // Glass-lined steel
-  'inner-glass': { rough: 0.22, metal: 0, coat: 0.5 },
-  steel: { tex: 'brushed', rough: 0.4, metal: 0.9 },
-  'outer-glass': { rough: 0.22, metal: 0, coat: 0.5 },
+  'inner-glass': { rough: 0.12, metal: 0, coat: 1, coatRough: 0.04 },
+  steel: { tex: 'brushed', relief: 0.4, rough: 0.42, metal: 1 },
+  'outer-glass': { rough: 0.12, metal: 0, coat: 1, coatRough: 0.04 },
   // Stainless
-  contact: { tex: 'brushed', rough: 0.25, metal: 1 },
-  shell: { tex: 'brushed', rough: 0.38, metal: 0.95 },
-  jacket: { tex: 'dimple', rough: 0.4, metal: 0.9 },
-  insulation: { tex: 'wool', rough: 0.9, metal: 0 },
+  contact: { colour: '#e6e9ec', rough: 0.06, metal: 1 }, // polished to a mirror
+  shell: { tex: 'brushed', relief: 0.35, rough: 0.26, metal: 1, aniso: 0.6 },
+  jacket: { tex: 'dimple', relief: 3.5, rough: 0.32, metal: 1 },
+  insulation: { tex: 'wool', relief: 4, colour: '#bfae7f', rough: 0.95, metal: 0 }, // mineral wool
 };
 
 export type Section = {
@@ -179,19 +232,28 @@ export function buildSection(layers: SectionLayer[]): Section {
       bevelSegments: 2,
     });
     geo.rotateX(-Math.PI / 2);
-    const look = LOOK[l.id] ?? { rough: 0.5, metal: 0 };
-    const map = look.tex ? textures[look.tex](l.tone) : null;
+    const look: Look = LOOK[l.id] ?? { rough: 0.5, metal: 0 };
+    const base = look.colour ?? l.tone;
+    const map = look.tex ? textures[look.tex](base) : null;
+    // the relief comes from the same pattern drawn on grey, so bumps line up with the colour
+    const normalMap = look.tex && look.relief ? normalTex((g, sz) => drawHeight(look.tex!, g, sz), look.relief, map?.repeat.x ?? 1) : null;
     const mat = new THREE.MeshPhysicalMaterial({
-      color: map ? '#ffffff' : l.tone,
+      color: map ? '#ffffff' : base,
       map,
+      normalMap,
       roughness: look.rough,
       metalness: look.metal,
       clearcoat: look.coat ?? 0,
-      clearcoatRoughness: 0.3,
+      clearcoatRoughness: look.coatRough ?? 0.3,
+      anisotropy: look.aniso ?? 0,
       transparent: look.opacity !== undefined,
       opacity: look.opacity ?? 1,
     });
     if (map) map.repeat.multiplyScalar(0.6);
+    if (normalMap) {
+      normalMap.repeat.copy(map!.repeat);
+      disposables.push(normalMap);
+    }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = mesh.receiveShadow = true;
     mesh.userData.base = mat.color.clone();

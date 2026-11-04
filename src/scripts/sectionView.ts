@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import { buildSection, type SectionLayer } from './three/section';
-import { studioEnvironment } from './three/vessel';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { frameLoop } from './motion';
 
 export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLayer[], still: boolean) {
@@ -17,9 +17,12 @@ export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLaye
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const env = studioEnvironment(renderer);
+  // a bright, soft room to reflect, so stainless reads silver and enamel and gel coat catch highlights
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
   scene.environment = env;
-  scene.environmentIntensity = 0.5;
+  scene.environmentIntensity = 0.8;
 
   const key = new THREE.SpotLight('#f6f7f8', 60, 30, 0.6, 1, 1.2);
   key.position.set(-1.2, 10, 6);
