@@ -69,7 +69,8 @@ export function createWinding(
 ): Winding {
   const small = Math.min(innerWidth, innerHeight) < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 2));
+  // 1.5 at most: at 2 on a Retina laptop the composer (AO, bokeh, bloom) runs near 20 fps
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
@@ -751,8 +752,7 @@ export function createWinding(
 
   // ---- Adaptive quality: step down if frames run long, never back up ----
   let tier = 0;
-  let sampleT = 0;
-  let sampleN = 0;
+  const samples: number[] = [];
   let warm = 0;
   const degrade = () => {
     tier++;
@@ -772,11 +772,14 @@ export function createWinding(
   };
   const watch = (raw: number) => {
     warm += raw;
-    if (warm < 3 || tier >= 3) return; // ignore start-up (shader compile, decoding)
-    sampleT += raw;
-    if (++sampleN < 90) return;
-    if (sampleT / sampleN > 1 / 45) degrade();
-    sampleT = sampleN = 0;
+    if (warm < 1.5 || tier >= 3) return; // ignore start-up (shader compile, decoding)
+    samples.push(raw);
+    if (samples.length < 30) return;
+    // the median, so one hitch (an image decoding) doesn't cost the whole hero its quality
+    const med = samples.sort((x, y) => x - y)[15];
+    samples.length = 0;
+    if (med > 1 / 45) degrade();
+    if (med > 1 / 24 && tier < 3) degrade(); // far over: skip a step
   };
 
   // ---- Loop ----

@@ -312,7 +312,8 @@ function leafGeometry(seg: number) {
 
 export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  // a full-screen canvas: 1.5 is plenty for a small leaf on a phone
+  renderer.setPixelRatio(Math.min(devicePixelRatio, Math.min(innerWidth, innerHeight) < 700 ? 1.5 : 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.AgXToneMapping;
   const scene = new THREE.Scene();
@@ -385,8 +386,16 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
         if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).renderOrder = 2;
       });
       twig.add(g.scene);
+      warm();
     })
     .catch(() => {}); // no twig: the leaf still hangs in the same place
+  // Compile every shader as soon as its textures or model are in, so the leaf's first
+  // appearance and the twig's don't stall a frame. The tick sets visibility again each frame.
+  const warm = () => {
+    scene.traverse((o) => (o.visible = true));
+    renderer.compileAsync(scene, camera).catch(() => {});
+  };
+  loadLeafTextures().then(() => setTimeout(warm), () => {}); // after every material has switched to them
   const COPPER = { top: new THREE.Color('#9a4a34'), back: new THREE.Color('#c27a5c'), vein: new THREE.Color('#6e3324'), glow: new THREE.Color('#f2a074') };
   const kin = [
     { node: 'node_b', size: 0.7, roll: -2.95, pitch: -0.15, spin: 0.95, phase: 1.3 },
