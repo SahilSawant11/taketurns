@@ -48,7 +48,7 @@ const facts = [
     <div class="wrap">
       <div class="chapter">
         <p class="chapter__n">[02] The materials</p>
-        <h2 id="c2">Three ways to <em>protect what's inside</em></h2>
+        <h2 id="c2" data-reveal>Three ways to <em>protect what's inside</em></h2>
       </div>
       <ol class="mats">
         {materials.map((m, i) => (
@@ -288,8 +288,10 @@ const facts = [
 
 <script>
   import { initWaveEdge } from '../scripts/waveEdge';
+  import { initLineReveal } from '../scripts/lineReveal';
   // the one transition: statement → materials rises in a soft wave
   document.querySelectorAll<HTMLElement>('[data-wave-edge]').forEach((el) => initWaveEdge(el));
+  document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => initLineReveal(el));
 
   document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];

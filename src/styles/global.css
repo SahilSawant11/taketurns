@@ -199,3 +199,6 @@ a.card:hover h2, a.card:hover h3 { color: var(--accent); }
 /* One soft-wave transition into a section (scripts/waveEdge.ts). */
 .has-wave-edge { position: relative; border-top: 0 !important; }
 .wave-edge { position: absolute; left: 0; bottom: calc(100% - 1px); width: 100%; display: block; pointer-events: none; }
+/* Line reveal (scripts/lineReveal.ts): each line's mask gets a little room so tight
+   uppercase leading doesn't clip the glyphs, without changing the layout. */
+.reveal__line-mask { padding-block: 0.08em; margin-block: -0.08em; }
