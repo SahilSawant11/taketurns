@@ -90,9 +90,18 @@ const isActive = (href: string) => path.startsWith(href);
   .menu li:nth-child(8) { animation-delay: .21s; }
   @keyframes rise { from { opacity: 0; transform: translateY(24px); } }
 
+  @property --hdr-bg { syntax: '<color>'; inherits: true; initial-value: #0d100f; }
   @media (max-width: 760px) {
-    .hdr { grid-template-columns: 1fr auto; }
+    .hdr { grid-template-columns: 1fr auto; transition: color .3s, --hdr-bg .4s; }
     .hdr__mid, .hdr__link { display: none; }
+    /* Body text scrolls under the header on phones: a scrim in the section's own colour,
+       solid behind the mark and fading out below it. */
+    .hdr::before {
+      content: ''; position: absolute; inset: 0 0 -28px 0; z-index: -1; pointer-events: none;
+      background: linear-gradient(var(--hdr-bg) 62%, color-mix(in srgb, var(--hdr-bg) 0%, transparent));
+      opacity: 0; transition: opacity .4s;
+    }
+    .hdr.has-scrim::before { opacity: 1; }
   }
 </style>
 
@@ -103,8 +112,8 @@ const isActive = (href: string) => path.startsWith(href);
     btn.setAttribute('aria-expanded', String(open));
     btn.querySelector('span')!.textContent = open ? 'Close' : 'Menu';
     menu.hidden = !open;
-    hdr.classList.toggle('on-light', false);
     document.documentElement.style.overflow = open ? 'hidden' : '';
+    applyTone();
     if (open) menu.querySelector('a')?.focus();
   };
   btn.addEventListener('click', () => setOpen(btn.getAttribute('aria-expanded') !== 'true'));
@@ -116,17 +125,46 @@ const isActive = (href: string) => path.startsWith(href);
   const hdr = document.querySelector<HTMLElement>('.hdr')!;
   const labelEl = document.querySelector<HTMLElement>('[data-chapter-label]')!;
   // Which tone is under the header? Light sections get dark text, everything else light.
-  const DARK = '.tone-dark, .tone-green, .section--dark, .theme-dark, .ftr, .menu';
-  const toneCheck = () => {
-    if (!menu.hidden) return hdr.classList.remove('on-light');
-    const el = document.elementFromPoint(innerWidth / 2, 34);
-    const light = el ? !!el.closest('.tone-light') || !el.closest(DARK) : false;
-    hdr.classList.toggle('on-light', light);
+  // A 1px line at the header's middle is watched with an IntersectionObserver, so this
+  // only runs when the section under the header changes, not on every scroll.
+  const TONED = '.tone-light, .tone-dark, .tone-green, .section--dark, .theme-dark, .ftr';
+  const under = new Set<Element>();
+  const applyTone = () => {
+    if (!menu.hidden) return hdr.classList.remove('on-light', 'has-scrim'); // the menu is its own dark ground
+    // the innermost toned element on the line (sections can sit inside a toned wrapper)
+    let el: Element | null = null;
+    for (const e of under) if (![...under].some((o) => o !== e && e.contains(o))) el = e;
+    hdr.classList.toggle('on-light', !el || el.matches('.tone-light'));
+    // phones: a scrim in the colour of the section under the header, none over the hero's scene
+    // (no toned section under it, as on inner pages: the page's own ground)
+    const ground = el ?? document.body;
+    const bg = getComputedStyle(ground).backgroundColor;
+    const solid = !ground.matches('.wh') && !/rgba\(.*,\s*0\)$|transparent/.test(bg);
+    if (solid) hdr.style.setProperty('--hdr-bg', bg);
+    hdr.classList.toggle('has-scrim', solid);
   };
+  let io: IntersectionObserver | null = null;
+  const watchTone = () => {
+    io?.disconnect();
+    under.clear();
+    io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) e.isIntersecting ? under.add(e.target) : under.delete(e.target);
+        applyTone();
+      },
+      { rootMargin: `-34px 0px ${-(innerHeight - 35)}px 0px` },
+    );
+    document.querySelectorAll(TONED).forEach((el) => io!.observe(el));
+  };
+  watchTone();
+  let resizeT = 0;
+  addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = window.setTimeout(watchTone, 150);
+  });
   const onScroll = () => {
     const max = document.documentElement.scrollHeight - innerHeight;
     hdr.style.setProperty('--scroll', String(max > 0 ? scrollY / max : 0));
-    toneCheck();
   };
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
