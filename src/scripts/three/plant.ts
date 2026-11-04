@@ -543,8 +543,12 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   // ---- The estate from Blender, and its trees ----
   const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  Promise.all([loader.loadAsync(`${base}models/estate.glb`), fetch(`${base}models/estate-trees.json`).then((r) => r.json() as Promise<{ trees: number[][] }>)])
-    .then(([gltf, { trees }]) => {
+  Promise.all([
+    loader.loadAsync(`${base}models/estate.glb`),
+    fetch(`${base}models/estate-trees.json`).then((r) => r.json() as Promise<{ trees: number[][] }>),
+    loader.loadAsync(`${base}models/trees.glb`).catch(() => null), // scripts/blender/trees.py; without it, simple crowns
+  ])
+    .then(([gltf, { trees }, kinds]) => {
       let groundTex: THREE.Texture | null = null;
       gltf.scene.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -566,23 +570,54 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
       const outer = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshBasicMaterial({ color: edgeColour(groundTex) })));
       outer.rotation.x = -Math.PI / 2;
       outer.position.y = -0.05;
-      // trees: instanced clusters of a few low-poly crowns
-      const crown = (r: number, x: number, y: number, z: number) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z);
-      const parts = small ? [crown(1, 0, 0.95, 0)] : [crown(1, 0, 1.0, 0), crown(0.7, 0.6, 0.75, 0.25), crown(0.62, -0.45, 0.8, -0.4)];
-      const treeGeo = keep(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))));
-      parts.forEach((g) => g.dispose());
+      // trees: three kinds from Blender (round, oval, spreading), instanced; phones get the lighter meshes and half as many
       const list = small ? trees.filter((_, i) => i % 2 === 0) : trees;
-      const inst = new THREE.InstancedMesh(treeGeo, keep(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true })), list.length);
+      const geos: THREE.BufferGeometry[] = [];
+      if (kinds) {
+        for (const name of ['tree_round', 'tree_oval', 'tree_spread']) {
+          // gltfpack keeps the name on the node; the mesh may be the node or its child
+          let m: THREE.Mesh | undefined;
+          kinds.scene.getObjectByName(small ? `${name}_lo` : name)?.traverse((o) => {
+            if (!m && (o as THREE.Mesh).isMesh) m = o as THREE.Mesh;
+          });
+          if (m) geos.push(keep(m.geometry));
+        }
+      }
+      const blender = geos.length === 3;
+      if (!blender) {
+        const crown = (r: number, x: number, y: number, z: number) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z);
+        const parts = small ? [crown(1, 0, 0.95, 0)] : [crown(1, 0, 1.0, 0), crown(0.7, 0.6, 0.75, 0.25), crown(0.62, -0.45, 0.8, -0.4)];
+        geos.push(keep(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))));
+        parts.forEach((g) => g.dispose());
+      }
+      const treeMat = keep(
+        blender
+          ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }) // shade and AO are baked into the vertex colours
+          : new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
+      );
+      const kindOf = (h: number) => (blender ? Math.floor(((h * 7.13) % 1) * 3) : 0);
+      const counts = geos.map((_, k) => list.filter(([, , , h]) => kindOf(h) === k).length);
+      const insts = geos.map((g, k) => new THREE.InstancedMesh(g, treeMat, counts[k]));
+      const fill = geos.map(() => 0);
       const mtx = new THREE.Matrix4();
       const q = new THREE.Quaternion();
       const c = new THREE.Color();
-      list.forEach(([x, z, sc, h], i) => {
-        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h * 6.28);
-        inst.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.85, sc * 0.95, sc * 0.85)));
-        inst.setColorAt(i, c.setHSL(0.24 + h * 0.07, 0.32 + h * 0.15, 0.22 + h * 0.09));
-      });
+      const up = new THREE.Vector3(0, 1, 0);
+      for (const [x, z, sc, h] of list) {
+        const k = kindOf(h);
+        const i = fill[k]++;
+        q.setFromAxisAngle(up, h * 6.28);
+        if (blender) {
+          insts[k].setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.8, sc * 0.88, sc * 0.8)));
+          // a light tint over the baked green: no two trees quite the same shade
+          insts[k].setColorAt(i, c.setHSL(0.2 + h * 0.1, 0.3, 0.86 + ((h * 3.7) % 1) * 0.14));
+        } else {
+          insts[k].setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.85, sc * 0.95, sc * 0.85)));
+          insts[k].setColorAt(i, c.setHSL(0.24 + h * 0.07, 0.32 + h * 0.15, 0.22 + h * 0.09));
+        }
+      }
       scene.remove(estate);
-      scene.add(gltf.scene, outer, inst);
+      scene.add(gltf.scene, outer, ...insts);
     })
     .catch(() => {}); // keep the stand-in
 
