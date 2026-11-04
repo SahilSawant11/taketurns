@@ -9,6 +9,8 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
@@ -357,6 +359,9 @@ export function createWinding(
   cyl(0.045, 10.2, steel, 'x', 0, -1.2, 1.78); // rails
   cyl(0.045, 10.2, steel, 'x', 0, -1.2, 2.36);
 
+  // everything above is the stand-in for the Blender machine's static part (the screen stays: it's live)
+  const staticStandIns = machine.children.filter((o) => o !== screen);
+
   const carriage = new THREE.Group();
   machine.add(carriage);
   rbox(0.95, 0.24, 0.95, powder, 0, -1.06, 2.07, carriage);
@@ -377,6 +382,41 @@ export function createWinding(
   cyl(0.07, 0.5, graphite, 'x', 0, -0.52, 2.72, carriage); // spindle
   const pkg = cyl(0.22, 0.36, spool, 'x', 0, -0.52, 2.72, carriage);
   for (const sx of [-0.25, 0.25]) rbox(0.035, 0.46, 0.14, graphite, sx, -0.75, 2.72, carriage);
+  // the page keeps what it animates or draws: the roller, the roving package, the resin, the eye
+  const carriageStandIns = carriage.children.filter((o) => o !== pkg && o !== surface && o !== roller && o !== eye);
+
+  // The Blender machine (scripts/blender/winder.py) takes over from the stand-ins once it's in.
+  // Its three nodes are modelled in these coordinates: the static machine, the carriage at x = 0
+  // (slid along with ours), and the chuck's jaws (turned with the mandrel).
+  const winderParts: THREE.Object3D[] = [];
+  const machineIn = new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/winder.glb`)
+    .then((gltf) => {
+      const st = gltf.scene.getObjectByName('winder_static');
+      const ca = gltf.scene.getObjectByName('winder_carriage');
+      const ja = gltf.scene.getObjectByName('winder_jaws');
+      if (!st || !ca || !ja) return;
+      const opacity = powder.opacity;
+      gltf.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.castShadow = m.receiveShadow = true;
+        for (const mt of Array.isArray(m.material) ? m.material : [m.material]) {
+          mt.transparent = true; // fades with the machine
+          mt.opacity = opacity;
+          if (!machineMats.includes(mt)) machineMats.push(mt);
+        }
+      });
+      staticStandIns.forEach((o) => machine.remove(o));
+      carriageStandIns.forEach((o) => carriage.remove(o));
+      jaws.clear();
+      machine.add(st);
+      carriage.add(ca);
+      jaws.add(ja);
+      winderParts.push(st, ca, ja);
+    })
+    .catch(() => {}); // keep the stand-ins
 
   const tow = createTow(carriage, scene, EYE);
   /** Mandrel radius at axial position x (profile points run along the axis). */
@@ -849,7 +889,7 @@ export function createWinding(
   frame();
   // Compile every shader before the first frame so the intro doesn't stutter.
   placeCamera(apply(current, 0, 0, intro, exit), 0, intro);
-  workshop.loaded.then(() => prep(scene)); // the Blender shop arrives after the first compile
+  Promise.all([workshop.loaded, machineIn]).then(() => prep(scene)); // the Blender shop and machine arrive after the first compile
   // The plant too, now, before the first frame: built mid-scroll (during curing) its
   // environment map and ~25 shaders cost a visible ~150 ms stall.
   if (!opts.still) getPlant();
@@ -885,6 +925,14 @@ export function createWinding(
       beam.dispose();
       vapour.dispose();
       workshop.dispose();
+      winderParts.forEach((p) =>
+        p.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          m.geometry.dispose();
+          (Array.isArray(m.material) ? m.material : [m.material]).forEach((mt) => mt.dispose());
+        }),
+      );
       plant?.dispose();
       composer.dispose();
       target.dispose();
