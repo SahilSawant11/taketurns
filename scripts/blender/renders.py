@@ -1097,6 +1097,173 @@ def ss_macro():
 
 SHOTS.update({"frp-macro": frp_macro, "gls-macro": gls_macro, "ss-macro": ss_macro})
 
+# ---------------------------------------------------------------- wall sections: exploded layers on the cards' cream
+CREAM = "#d8d1c3"  # the Materials section's ground (src/styles/global.css, .tone-light --paper)
+
+
+def light_studio(target, cam_from, lens=50):
+    """Soft daylight studio for the cream cards: transparent film over a shadow-catcher floor (composited onto CREAM after)."""
+    sc = bpy.context.scene
+    world = bpy.data.worlds.new("day")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value = (*srgb_to_lin(hexc("#ece6da")), 1)
+    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.9  # bright ambient: the floor's shadows stay light
+    sc.world = world
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0))
+    floor = bpy.context.active_object
+    floor.is_shadow_catcher = True
+    sc.render.film_transparent = True
+    t = Vector(target)
+    side = Vector(cam_from) - t
+    side.z = 0
+    side.normalize()
+    left = Vector((-side.y, side.x, 0))
+
+    def area(name, loc, size, power):
+        L = bpy.data.lights.new(name, "AREA")
+        L.energy, L.size = power, size
+        o = bpy.data.objects.new(name, L)
+        o.location = loc
+        sc.collection.objects.link(o)
+        e = bpy.data.objects.new(name + "_aim", None)
+        e.location = target
+        sc.collection.objects.link(e)
+        c = o.constraints.new("TRACK_TO")
+        c.target = e
+
+    area("key", t + side * 1.5 + left * 2.5 + Vector((0, 0, 6)), 10, 300)  # high and large: short, soft shadows
+    area("fill", t + side * 5 - left * 3 + Vector((0, 0, 1.5)), 6, 60)
+    area("rim", t - side * 4 + Vector((0, 0, 3)), 3, 220)
+    cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
+    cam.data.lens = lens
+    cam.location = cam_from
+    sc.collection.objects.link(cam)
+    e = bpy.data.objects.new("cam_aim", None)
+    e.location = target
+    sc.collection.objects.link(e)
+    c = cam.constraints.new("TRACK_TO")
+    c.target = e
+    sc.camera = cam
+    sc.render.engine = "CYCLES"
+    sc.cycles.samples = SAMPLES
+    sc.cycles.use_denoising = True
+    sc.cycles.device = "CPU"
+    if os.environ.get("RENDER_GPU"):
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = os.environ["RENDER_GPU"]
+        prefs.get_devices()
+        for dev in prefs.devices:
+            dev.use = True
+        sc.cycles.device = "GPU"
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1200
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.look = "AgX - Base Contrast"
+    sc["bg"] = CREAM  # the main loop composites onto this
+
+
+def dimpled(colour="#a7afb7"):
+    """Dimple jacket: a stainless sheet pressed with a grid of shallow dimples."""
+    def bump(nt, p):
+        v = node(nt, "ShaderNodeTexVoronoi", Scale=38.0, _feature="SMOOTH_F1")
+        v.inputs["Randomness"].default_value = 0.0
+        b = node(nt, "ShaderNodeBump", Strength=0.45, Distance=0.004)
+        nt.links.new(v.outputs["Distance"], b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+    return mat("dimple", colour, rough=0.28, metal=1.0, bump=bump)
+
+
+def wool():
+    """Mineral wool: fibrous, matte, a muted straw colour."""
+    m = bpy.data.materials.new("wool")
+    m.use_nodes = True
+    nt = m.node_tree
+    p = nt.nodes["Principled BSDF"]
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = node(nt, "ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (40, 40, 260)
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    n = node(nt, "ShaderNodeTexNoise", Scale=1.0, Detail=8.0, Roughness=0.7)
+    nt.links.new(mp.outputs["Vector"], n.inputs["Vector"])
+    r = node(nt, "ShaderNodeMapRange", **{"To Min": 0.7, "To Max": 1.15})
+    nt.links.new(n.outputs["Fac"], r.inputs["Value"])
+    tint = nt.nodes.new("ShaderNodeMix")
+    tint.data_type = "RGBA"
+    tint.blend_type = "MULTIPLY"
+    tint.inputs["Factor"].default_value = 1.0
+    tint.inputs["A"].default_value = (*srgb_to_lin(hexc("#bfae7f")), 1)
+    nt.links.new(r.outputs["Result"], tint.inputs["B"])
+    nt.links.new(tint.outputs["Result"], p.inputs["Base Color"])
+    b = node(nt, "ShaderNodeBump", Strength=0.6, Distance=0.004)
+    nt.links.new(n.outputs["Fac"], b.inputs["Height"])
+    nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+    p.inputs["Roughness"].default_value = 0.95
+    return m
+
+
+def enamel(colour, name):
+    def peel(nt, p):
+        n = node(nt, "ShaderNodeTexNoise", Scale=120.0, Detail=2.0)
+        b = node(nt, "ShaderNodeBump", Strength=0.05, Distance=0.0006)
+        nt.links.new(n.outputs["Fac"], b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Coat Normal"])
+    return mat(name, colour, rough=0.15, coat=1.0, coat_rough=0.04, bump=peel)
+
+
+def steel_substrate():
+    def scale(nt, p):
+        n = node(nt, "ShaderNodeTexNoise", Scale=18.0, Detail=6.0)
+        r = node(nt, "ShaderNodeMapRange", **{"To Min": 0.32, "To Max": 0.6})
+        nt.links.new(n.outputs["Fac"], r.inputs["Value"])
+        nt.links.new(r.outputs["Result"], p.inputs["Roughness"])
+    return mat("steel_sub", "#6b737b", rough=0.45, metal=1.0, bump=scale)
+
+
+SECTION_LAYERS = {
+    # inner → outer, (layer id, weight from src/content/materials.ts, material)
+    "frp": lambda: [("liner", 1.0, mat("liner_sec", "#cfe9d3", rough=0.16, coat=0.6, coat_rough=0.04)),
+                    ("barrier", 1.6, chopped_mat("#8fd0a5")),
+                    ("structural", 3.4, wound(1.3, colour="#3f9e68")),
+                    ("exterior", 0.8, frp_gelcoat("Z", "#1c5e3d"))],
+    "gls": lambda: [("inner-glass", 0.9, enamel("#7fa7c9", "enamel_in")),
+                    ("steel", 3.6, steel_substrate()),
+                    ("outer-glass", 0.9, enamel("#3f6f98", "enamel_out"))],
+    "ss": lambda: [("contact", 0.7, mat("ss_mirror", "#e3e7eb", rough=0.04, metal=1.0)),
+                   ("shell", 2.2, mat("ss_brushed_sec", "#c1c8cf", rough=0.24, metal=1.0)),
+                   ("jacket", 1.1, dimpled()),
+                   ("insulation", 1.3, wool())],
+}
+
+
+def section(slug):
+    def build():
+        layers = SECTION_LAYERS[slug]()
+        n = len(layers)
+        R, unit, H = 1.4, 0.03, 1.0
+        span = math.radians(34)
+        cam_az = math.radians(-35)
+        right = Vector((-math.sin(cam_az), math.cos(cam_az), 0))
+        back = -Vector((math.cos(cam_az), math.sin(cam_az), 0))
+        # fanned like a deck of cards: the outer layer at the front left, each one inside it
+        # stepped back and to the right, all the same curve, so every face shows
+        step = right * 0.36 + back * 0.42
+        for k, (lid, w, m) in enumerate(reversed(layers)):  # outer first
+            t = w * unit
+            off = step * (k - (n - 1) / 2)
+            obs = [sector(f"sec_{lid}", R - t, R, cam_az - span / 2, cam_az + span / 2, 0.0, H, m, segs=96, bevel=0.003)]
+            if lid == "insulation":
+                # the cladding over the wool, stopped short so the wool shows at its edge
+                obs.append(sector("sec_cladding", R, R + 0.004, cam_az - span / 2 + math.radians(8), cam_az + span / 2, 0.0, H, mat("ss_clad_sec", "#c9ced3", rough=0.3, metal=1.0), segs=96, bevel=0.0015))
+            for ob in obs:
+                ob.location = off - Vector((math.cos(cam_az), math.sin(cam_az), 0)) * R
+        tgt = Vector((0, 0, H * 0.48))
+        eye = tgt + Vector((math.cos(cam_az), math.sin(cam_az), 0)) * 4.4 + Vector((0, 0, 3.1))  # high enough to see each layer's thickness on top
+        light_studio(tuple(tgt), tuple(eye), lens=60)
+
+    return build
+
+
+SHOTS.update({"frp-section": section("frp"), "gls-section": section("gls"), "ss-section": section("ss")})
+
 for name, build in SHOTS.items():
     if WANT and name not in WANT:
         continue
@@ -1104,6 +1271,44 @@ for name, build in SHOTS.items():
     build()
     sc = bpy.context.scene
     os.makedirs(OUT, exist_ok=True)
-    sc.render.filepath = os.path.join(os.path.abspath(OUT), name + ".jpg")
-    bpy.ops.render.render(write_still=True)
+    final = os.path.join(os.path.abspath(OUT), name + ".jpg")
+    bg = sc.get("bg")
+    if not bg:
+        sc.render.filepath = final
+        bpy.ops.render.render(write_still=True)
+    else:
+        # transparent render, then laid over the page's own ground colour, exactly
+        import numpy as np
+
+        tmp = os.path.join(bpy.app.tempdir, name + ".png")
+        sc.render.image_settings.file_format = "PNG"
+        sc.render.image_settings.color_mode = "RGBA"
+        sc.render.filepath = tmp
+        bpy.ops.render.render(write_still=True)
+        img = bpy.data.images.load(tmp)
+        img.colorspace_settings.name = "Non-Color"  # take the stored (display) values as they are
+        px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        g = np.array(hexc(bg), dtype=np.float32)
+        a = px[:, 3:4].copy()
+        # the shadow catcher's pixels are pure black with an alpha; keep them at half strength,
+        # so the floor stays the page's cream with a soft shadow, not a grey slab
+        shadow_only = (px[:, :3].max(axis=1, keepdims=True) < 0.015)
+        # and fade the shadow out towards the frame, so the image has no edge against the page
+        h_, w_ = img.size[1], img.size[0]
+        yy, xx = np.mgrid[0:h_, 0:w_]
+        edge = np.minimum.reduce([xx / w_, (w_ - 1 - xx) / w_, yy / h_, (h_ - 1 - yy) / h_]).reshape(-1, 1)
+        fade = np.clip(edge / 0.16, 0, 1)
+        fade = fade * fade * (3 - 2 * fade)
+        a = np.where(shadow_only, a * 0.45 * fade, a)
+        px[:, :3] = px[:, :3] * a + g * (1 - a)
+        px[:, 3] = 1
+        out = bpy.data.images.new(name, img.size[0], img.size[1], alpha=False)
+        out.colorspace_settings.name = "Non-Color"
+        out.pixels[:] = px.ravel()
+        out.file_format = "JPEG"
+        sc.render.image_settings.file_format = "JPEG"
+        sc.render.image_settings.color_mode = "RGB"
+        sc.render.image_settings.quality = 88
+        out.save_render(final, scene=sc)
+    sc.render.filepath = final
     print(f"[renders] {name} → {sc.render.filepath}")
