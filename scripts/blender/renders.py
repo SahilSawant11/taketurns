@@ -268,7 +268,8 @@ def studio(target, cam_from, lens=58, key=420, rim=800, fill=60, floor="#101211"
         e = nt.nodes.new("ShaderNodeEmission")
         e.inputs["Strength"].default_value = cards
         nt.links.new(e.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
-        for k, (where, w, h) in enumerate(((left * 6 + side * 1.5, 3.0, 6.0), (-left * 6 + side * 0.5, 2.0, 6.0), (-side * 7 + left * 1.5, 7.0, 4.0))):
+        behind_cam = (Vector(cam_from) - t) * 1.6 + Vector((0, 0, 1.5))  # what flat gloss facing the camera reflects
+        for k, (where, w, h) in enumerate(((left * 6 + side * 1.5, 3.0, 6.0), (-left * 6 + side * 0.5, 2.0, 6.0), (-side * 7 + left * 1.5, 7.0, 4.0), (behind_cam, 3.0, 1.6))):
             bpy.ops.mesh.primitive_plane_add(size=1, location=t + where + Vector((0, 0, 1.0)))
             c = bpy.context.active_object
             c.name = f"card{k}"
@@ -796,6 +797,305 @@ def thermo_tank():
 
 
 SHOTS = {"frp-tank": frp_tank, "frp-pipe": frp_pipe, "frp-vessel": frp_vessel, "gls-tank": gls_tank, "ss-vessel": ss_vessel, "thermo-tank": thermo_tank}
+
+# ---------------------------------------------------------------- macro helpers
+def sector(name, r0, r1, a0, a1, z0, z1, m, segs=64, bevel=0.0):
+    """A solid piece of cylinder wall: radii r0..r1, angles a0..a1 (rad), heights z0..z1."""
+    me = bpy.data.meshes.new(name)
+    vs, fs = [], []
+    for i in range(segs + 1):
+        a = a0 + (a1 - a0) * i / segs
+        c, s_ = math.cos(a), math.sin(a)
+        for r, z in ((r0, z0), (r1, z0), (r1, z1), (r0, z1)):
+            vs.append((r * c, r * s_, z))
+    for i in range(segs):
+        b, n = i * 4, (i + 1) * 4
+        for k in range(4):
+            fs.append((b + k, n + k, n + (k + 1) % 4, b + (k + 1) % 4))
+    fs.append((3, 2, 1, 0))
+    e = segs * 4
+    fs.append((e, e + 1, e + 2, e + 3))
+    me.from_pydata(vs, [], fs)
+    me.update()
+    ob = link(bpy.data.objects.new(name, me), m, bevel=bevel)
+    return ob
+
+
+def node(nt, kind, **inputs):
+    n = nt.nodes.new(kind)
+    for k, v in inputs.items():
+        if k.startswith("_"):
+            setattr(n, k[1:], v)
+        else:
+            n.inputs[k].default_value = v
+    return n
+
+
+def math_(nt, op, a, b=None, val=None):
+    n = nt.nodes.new("ShaderNodeMath")
+    n.operation = op
+    for i, x in enumerate((a, b)):
+        if x is None:
+            continue
+        if isinstance(x, (int, float)):
+            n.inputs[i].default_value = x
+        else:
+            nt.links.new(x, n.inputs[i])
+    return n.outputs[0]
+
+
+def cyl_coords(nt, R):
+    """(s, z) on a cylinder of radius R: arc length round it, and height. Object space."""
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(tc.outputs["Object"], sep.inputs[0])
+    ang = math_(nt, "ARCTAN2", sep.outputs["Y"], sep.outputs["X"])
+    return math_(nt, "MULTIPLY", ang, R), sep.outputs["Z"]
+
+
+def wound(R, angle_deg=55, band=0.022, colour="#5b8a5e"):
+    """Filament-wound rovings: two helices crossing at ±angle, each band a bundle of fibres, over-under."""
+    m = bpy.data.materials.new("wound")
+    m.use_nodes = True
+    nt = m.node_tree
+    p = nt.nodes["Principled BSDF"]
+    s, z = cyl_coords(nt, R)
+    ca, sa = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
+    u = math_(nt, "ADD", math_(nt, "MULTIPLY", z, ca), math_(nt, "MULTIPLY", s, sa))
+    v = math_(nt, "SUBTRACT", math_(nt, "MULTIPLY", z, ca), math_(nt, "MULTIPLY", s, sa))
+    k = math.tau / band
+    fib = 9.0 * k  # fibre lines inside a band
+    bu = math_(nt, "SINE", math_(nt, "MULTIPLY", u, k))
+    bv = math_(nt, "SINE", math_(nt, "MULTIPLY", v, k))
+    # over/under: which helix is on top alternates in a checker of bands
+    chk = math_(nt, "GREATER_THAN", math_(nt, "MULTIPLY", bu, bv), 0.0)
+    fu = math_(nt, "ABSOLUTE", math_(nt, "SINE", math_(nt, "MULTIPLY", v, fib)))  # fibres along the u band run along v
+    fv = math_(nt, "ABSOLUTE", math_(nt, "SINE", math_(nt, "MULTIPLY", u, fib)))
+    mixf = nt.nodes.new("ShaderNodeMix")
+    mixf.data_type = "FLOAT"
+    nt.links.new(chk, mixf.inputs["Factor"])
+    nt.links.new(fu, mixf.inputs["A"])
+    nt.links.new(fv, mixf.inputs["B"])
+    height = math_(nt, "ADD", math_(nt, "MULTIPLY", mixf.outputs["Result"], 0.4), math_(nt, "MULTIPLY", math_(nt, "ABSOLUTE", math_(nt, "SUBTRACT", math_(nt, "MULTIPLY", bu, bv), 0)), 0.6))
+    b = node(nt, "ShaderNodeBump", Strength=0.6, Distance=0.0015)
+    nt.links.new(height, b.inputs["Height"])
+    nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+    ramp = node(nt, "ShaderNodeMapRange", **{"To Min": 0.62, "To Max": 1.08})
+    nt.links.new(height, ramp.inputs["Value"])
+    base = (*srgb_to_lin(hexc(colour)), 1)
+    tint = nt.nodes.new("ShaderNodeMix")
+    tint.data_type = "RGBA"
+    tint.blend_type = "MULTIPLY"
+    tint.inputs["Factor"].default_value = 1.0
+    tint.inputs["A"].default_value = base
+    nt.links.new(ramp.outputs["Result"], tint.inputs["B"])
+    nt.links.new(tint.outputs["Result"], p.inputs["Base Color"])
+    p.inputs["Roughness"].default_value = 0.3
+    p.inputs["Coat Weight"].default_value = 0.4  # wet-out resin over the glass
+    p.inputs["Coat Roughness"].default_value = 0.08
+    p.inputs["Subsurface Weight"].default_value = 0.15
+    p.inputs["Subsurface Radius"].default_value = (0.6, 0.9, 0.6)
+    p.inputs["Subsurface Scale"].default_value = 0.004
+    return m
+
+
+def chopped_mat(colour="#b8c39c"):
+    """Chopped strand mat: short glass strands every which way in resin, milky."""
+    m = bpy.data.materials.new("csm")
+    m.use_nodes = True
+    nt = m.node_tree
+    p = nt.nodes["Principled BSDF"]
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    acc = None
+    for i, (rot, sc) in enumerate(((0.3, 60), (1.4, 70), (2.3, 55), (0.9, 80))):
+        mp = node(nt, "ShaderNodeMapping")
+        mp.inputs["Rotation"].default_value = (rot * 0.7, rot, rot * 1.3)
+        mp.inputs["Scale"].default_value = (sc, sc * 0.08, sc)
+        nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+        vor = node(nt, "ShaderNodeTexVoronoi", Scale=1.0, _feature="DISTANCE_TO_EDGE")
+        nt.links.new(mp.outputs["Vector"], vor.inputs["Vector"])
+        st = math_(nt, "LESS_THAN", vor.outputs["Distance"], 0.025)
+        acc = st if acc is None else math_(nt, "MAXIMUM", acc, st)
+    ramp = node(nt, "ShaderNodeMapRange", **{"To Min": 0.94, "To Max": 1.12})
+    nt.links.new(acc, ramp.inputs["Value"])
+    tint = nt.nodes.new("ShaderNodeMix")
+    tint.data_type = "RGBA"
+    tint.blend_type = "MULTIPLY"
+    tint.inputs["Factor"].default_value = 1.0
+    tint.inputs["A"].default_value = (*srgb_to_lin(hexc(colour)), 1)
+    nt.links.new(ramp.outputs["Result"], tint.inputs["B"])
+    nt.links.new(tint.outputs["Result"], p.inputs["Base Color"])
+    b = node(nt, "ShaderNodeBump", Strength=0.12, Distance=0.0006)
+    nt.links.new(acc, b.inputs["Height"])
+    nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+    p.inputs["Roughness"].default_value = 0.35
+    p.inputs["Subsurface Weight"].default_value = 0.35
+    p.inputs["Subsurface Radius"].default_value = (0.8, 0.9, 0.7)
+    p.inputs["Subsurface Scale"].default_value = 0.006
+    return m
+
+
+def macro_camera(focus, cam_from, lens=100, fstop=4.0):
+    cam = bpy.context.scene.camera
+    cam.data.lens = lens
+    cam.location = cam_from
+    cam.data.dof.use_dof = True
+    cam.data.dof.focus_distance = (Vector(cam_from) - Vector(focus)).length
+    cam.data.dof.aperture_fstop = fstop
+
+
+# ---------------------------------------------------------------- FRP: the laminate, stepped back layer by layer
+def frp_macro():
+    R = 0.6  # inner radius of the piece of wall
+    # inside out: resin-rich liner with its surface veil, chopped strand mat, filament-wound structure, topcoat
+    layers = [
+        ("liner", 0.006, mat("liner", "#dfe6d6", rough=0.18, coat=0.5, coat_rough=0.05), 1.15),
+        ("csm", 0.008, chopped_mat(), 0.95),
+        ("wound", 0.022, wound(R + 0.006 + 0.008 + 0.022), 0.74),
+        ("topcoat", 0.004, frp_gelcoat("Z"), 0.52),
+    ]
+    r = R
+    a0 = -0.15
+    for name, t, m, a1 in layers:
+        sector(name, r, r + t, a0, a1, 0.0, 0.32, m, segs=96, bevel=0.0012)
+        r += t
+    # the piece rests on a small black stand, like a sample on a desk
+    box("stand", (0.5, 0.5, 0.02), (R * math.cos(0.5) + 0.02, R * math.sin(0.5), -0.01), mat("stand", "#151716", rough=0.5), bevel=0.003)
+    # from outside, beyond the steps, looking back along them: topcoat, then the rovings, the mat, the liner
+    tgt = Vector((math.cos(0.8), math.sin(0.8), 0)) * (R + 0.02) + Vector((0, 0, 0.15))
+    eye = Vector((math.cos(1.4), math.sin(1.4), 0)) * (R + 0.7) + Vector((0, 0, 0.78))  # high enough to see the layers' cut tops
+    studio(target=tuple(tgt), cam_from=tuple(eye), lens=85, cards=0.5)
+    macro_camera(tgt, tuple(eye), lens=85, fstop=8.0)
+
+
+# ---------------------------------------------------------------- GLS: the enamel and a bolted lap seam
+def raise_all(dz):
+    """Lift everything built so far (call before studio()): pieces modelled round z=0 clear the floor."""
+    for o in bpy.context.scene.objects:
+        if o.parent is None:
+            o.location.z += dz
+
+
+def gls_macro():
+    def peel(nt, p):
+        n = node(nt, "ShaderNodeTexNoise", Scale=180.0, Detail=2.0)
+        b = node(nt, "ShaderNodeBump", Strength=0.04, Distance=0.0004)
+        nt.links.new(n.outputs["Fac"], b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Coat Normal"])
+
+    enamel = mat("gls_enamel_macro", "#123c55", rough=0.12, coat=1.0, coat_rough=0.03, bump=peel)
+    cap = mat("bolt_cap", "#24506d", rough=0.3, coat=0.6)
+    sealant = mat("mastic", "#151718", rough=0.6)
+    R = 4.0
+    t = 0.006
+    # lower panel, and the upper one lapped over it (proud by its thickness), and a vertical seam above
+    sector("panel_lo", R, R + t, -0.12, 0.12, -0.5, 0.06, enamel, segs=64, bevel=0.0015)
+    sector("panel_up_l", R + t, R + 2 * t, -0.12, 0.004, 0.0, 0.5, enamel, segs=64, bevel=0.0015)
+    sector("panel_up_r", R + t, R + 2 * t, 0.006, 0.12, 0.0, 0.5, enamel, segs=64, bevel=0.0015)
+    # mastic squeezed out along the lap edge
+    tube("mastic_bead", [tuple(Vector((math.cos(a), math.sin(a), 0)) * (R + t + 0.001)) for a in [-0.12 + 0.24 * i / 80 for i in range(81)]], 0.0022, sealant)
+    pts = []
+    for i in range(-14, 15):
+        a = i * 0.0085
+        for z in (0.022, 0.044):
+            pts.append((a, z))
+    for z in [0.08 + k * 0.03 for k in range(14)]:
+        for a in (-0.0035, 0.0135):
+            pts.append((a, z))
+    for k, (a, z) in enumerate(pts):
+        n = Vector((math.cos(a), math.sin(a), 0))
+        base = n * (R + 2 * t) + Vector((0, 0, z))
+        cyl(f"washer{k}", 0.0085, 0.0012, cap, base, n, segs=24)
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=0.0068, location=base + n * 0.0012)
+        dome = bpy.context.active_object
+        dome.scale = (1, 1, 0.7)
+        rot_to(dome, n)
+        link(dome, cap)
+    raise_all(0.55)
+    tgt = Vector((R + 0.012, 0.0, 0.6))
+    studio(target=tuple(tgt), cam_from=tuple(tgt + Vector((0.42, -0.36, 0.14))), lens=100, cards=1.2)
+    macro_camera(tgt + Vector((0, -0.02, -0.01)), tuple(tgt + Vector((0.42, -0.36, 0.14))), lens=100, fstop=4.0)
+
+
+# ---------------------------------------------------------------- stainless: brushed shell, a TIG weld, a tri-clamp ferrule
+def ss_macro():
+    R = 0.9
+    WZ = 0.0  # the weld's height
+
+    def shell_nodes(nt, p):
+        # no anisotropy this close: on the shell's facets it combs the highlight by the weld;
+        # the brushed look comes from the roughness streaks below
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(tc.outputs["Object"], sep.inputs[0])
+        # brushing runs round the shell: fine streaks varying with height
+        n = node(nt, "ShaderNodeTexNoise", Scale=1.0, Detail=4.0)
+        cmb = nt.nodes.new("ShaderNodeCombineXYZ")
+        nt.links.new(math_(nt, "MULTIPLY", sep.outputs["Z"], 900.0), cmb.inputs["X"])
+        nt.links.new(math_(nt, "MULTIPLY", math_(nt, "ARCTAN2", sep.outputs["Y"], sep.outputs["X"]), 6.0), cmb.inputs["Y"])
+        nt.links.new(cmb.outputs[0], n.inputs["Vector"])
+        rr = node(nt, "ShaderNodeMapRange", **{"To Min": 0.12, "To Max": 0.22})
+        nt.links.new(n.outputs["Fac"], rr.inputs["Value"])
+        nt.links.new(rr.outputs["Result"], p.inputs["Roughness"])
+        b = node(nt, "ShaderNodeBump", Strength=0.05, Distance=0.0002)
+        nt.links.new(n.outputs["Fac"], b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+        # heat tint either side of the weld: straw to a faint blue, fading out within a couple of cm
+        d = math_(nt, "ABSOLUTE", math_(nt, "SUBTRACT", sep.outputs["Z"], WZ))
+        tint = nt.nodes.new("ShaderNodeValToRGB")
+        cr = tint.color_ramp
+        cr.elements[0].position = 0.0
+        cr.elements[0].color = (*srgb_to_lin(hexc("#b9a37a")), 1)
+        cr.elements[1].position = 1.0
+        cr.elements[1].color = (*srgb_to_lin(hexc("#cfd2d4")), 1)
+        e = cr.elements.new(0.35)
+        e.color = (*srgb_to_lin(hexc("#8d93a8")), 1)
+        nt.links.new(math_(nt, "MINIMUM", math_(nt, "DIVIDE", d, 0.022), 1.0), tint.inputs["Fac"])
+        nt.links.new(tint.outputs["Color"], p.inputs["Base Color"])
+
+    ss = mat("ss_macro", "#cfd2d4", rough=0.16, metal=1.0, bump=shell_nodes)
+    polished = mat("ss_polished", "#d9dbdc", rough=0.06, metal=1.0)
+
+    def bead_nodes(nt, p):
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(tc.outputs["Object"], sep.inputs[0])
+        # TIG ripples: closely spaced chevrons along the bead
+        s = math_(nt, "MULTIPLY", math_(nt, "ARCTAN2", sep.outputs["Y"], sep.outputs["X"]), R)
+        chev = math_(nt, "ADD", s, math_(nt, "MULTIPLY", math_(nt, "ABSOLUTE", math_(nt, "SUBTRACT", sep.outputs["Z"], WZ)), 0.8))
+        rip = math_(nt, "SINE", math_(nt, "MULTIPLY", chev, math.tau / 0.0016))
+        b = node(nt, "ShaderNodeBump", Strength=0.5, Distance=0.0004)
+        nt.links.new(rip, b.inputs["Height"])
+        nt.links.new(b.outputs["Normal"], p.inputs["Normal"])
+
+    bead_m = mat("weld_bead", "#bdb6a6", rough=0.2, metal=1.0, bump=bead_nodes)
+    sector("shell_lo", R - 0.004, R, -math.pi, math.pi, -0.5, WZ, ss, segs=1440)
+    sector("shell_up", R - 0.004, R, -math.pi, math.pi, WZ, 0.9, ss, segs=1440)
+    lathe("bead", [(R - 0.001, WZ - 0.0035)] + [(R + 0.0014 * math.sin(a), WZ - 0.0035 * math.cos(a)) for a in [i / 10 * math.pi for i in range(1, 10)]] + [(R - 0.001, WZ + 0.0035)], bead_m, segs=720)
+    # a hygienic tri-clamp ferrule through the shell above the weld, with its clamp and wing nut
+    a = 0.1
+    n = Vector((math.cos(a), math.sin(a), 0))
+    p0 = n * (R - 0.002) + Vector((0, 0, 0.085))
+    cyl("ferrule_neck", 0.026, 0.05, polished, p0, n, segs=64)
+    cyl("ferrule_face", 0.0335, 0.012, polished, p0 + n * 0.05, n, segs=64, bevel=0.002)
+    cyl("cap", 0.0335, 0.012, polished, p0 + n * 0.064, n, segs=64, bevel=0.002)
+    up = Vector((0, 0, 1))
+    side = n.cross(up)
+    ring_c = p0 + n * 0.063
+    tube("clamp", arc(ring_c, 0.039, -2.6, 2.6, 48, up, side), 0.0045, polished)
+    for sgn in (-1, 1):
+        q = ring_c + (up * math.cos(2.6 * sgn) + side * math.sin(2.6 * sgn)) * 0.039
+        box(f"clamp_ear{sgn}", (0.01, 0.006, 0.012), q - up * 0.006, polished)
+    tube("wing_bolt", [tuple(ring_c - up * 0.045 - side * 0.012), tuple(ring_c - up * 0.045 + side * 0.012)], 0.003, polished)
+    box("wing", (0.004, 0.03, 0.01), ring_c - up * 0.045 + side * 0.016, polished)
+    raise_all(0.5)
+    tgt = Vector((R * math.cos(0.04), R * math.sin(0.04), 0.535))
+    eye = tgt + Vector((0.8, -0.62, 0.2))
+    studio(target=tuple(tgt), cam_from=tuple(eye), lens=75, cards=1.6)
+    macro_camera(tgt, tuple(eye), lens=75, fstop=5.6)
+
+
+SHOTS.update({"frp-macro": frp_macro, "gls-macro": gls_macro, "ss-macro": ss_macro})
 
 for name, build in SHOTS.items():
     if WANT and name not in WANT:
