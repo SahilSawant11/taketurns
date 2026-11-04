@@ -28,25 +28,23 @@ const words = text.split(/\s+/).map((w) => ({ w: w.replace(/\*/g, ''), accent: w
 </style>
 
 <script>
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const items = [...document.querySelectorAll<HTMLElement>('[data-st]')].map((el) => ({
-      el,
-      words: [...el.querySelectorAll<HTMLElement>('.st__w')],
-    }));
-    let ticking = false;
-    const update = () => {
-      ticking = false;
-      const vh = innerHeight;
-      items.forEach(({ el, words }) => {
-        const r = el.getBoundingClientRect();
-        // 0 when the block's top enters at 85% of the viewport, 1 when its bottom reaches 40%.
-        const p = Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (r.height + vh * 0.45)));
+  import { ScrollTrigger, reducedMotion } from '../scripts/motion';
+
+  if (!reducedMotion) {
+    document.querySelectorAll<HTMLElement>('[data-st]').forEach((el) => {
+      const words = [...el.querySelectorAll<HTMLElement>('.st__w')];
+      const light = (p: number) => {
         const lit = Math.round(p * words.length * 1.15);
         words.forEach((w, i) => w.classList.toggle('is-lit', i < lit));
+      };
+      // 0 when the block's top enters at 85% of the viewport, 1 when its bottom reaches 40%.
+      ScrollTrigger.create({
+        trigger: el,
+        start: 'top 85%',
+        end: 'bottom 40%',
+        onUpdate: (self) => light(self.progress),
+        onRefresh: (self) => light(self.progress),
       });
-    };
-    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
-    addEventListener('resize', update);
-    update();
+    });
   }
 </script>

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { buildSection, type SectionLayer } from './three/section';
 import { studioEnvironment } from './three/vessel';
+import { frameLoop } from './motion';
 
 export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLayer[], still: boolean) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -55,7 +56,6 @@ export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLaye
     camera.lookAt(look);
   };
 
-  let raf = 0;
   let last = 0;
   const render = () => renderer.render(scene, camera);
   const tick = (now: number) => {
@@ -63,12 +63,13 @@ export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLaye
     last = now;
     const moving = section.update(still ? 1 : dt);
     render();
-    raf = moving ? requestAnimationFrame(tick) : 0;
+    if (!moving) loop.stop();
   };
+  const loop = frameLoop(tick);
   const kick = () => {
-    if (raf) return;
+    if (loop.running) return;
     last = 0;
-    raf = requestAnimationFrame(tick);
+    loop.start();
   };
 
   const ro = new ResizeObserver(() => {
@@ -93,7 +94,7 @@ export function createSectionView(canvas: HTMLCanvasElement, layers: SectionLaye
       kick();
     },
     dispose() {
-      cancelAnimationFrame(raf);
+      loop.stop();
       ro.disconnect();
       section.dispose();
       env.dispose();

@@ -16,6 +16,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { frameLoop } from './motion';
 import { MOVE, STAGE_P } from './three/stages';
 import { DU, PASSES, SPOOL, floor, laminateMaterial, laminateUniforms, profileAt, spoolProfile, studioEnvironment } from './three/vessel';
 import { HEAD_TURN, createTow, spoolTexture } from './three/tow';
@@ -782,7 +783,6 @@ export function createWinding(
   let goal = 0;
   let current = 0;
   let exit = 0;
-  let raf = 0;
   let visible = true;
   let ready = false;
   let last = performance.now();
@@ -794,7 +794,6 @@ export function createWinding(
     composer.render();
   };
   const tick = (now: number) => {
-    raf = requestAnimationFrame(tick);
     const raw = (now - last) / 1000;
     const dt = Math.min(raw, 0.05);
     last = now;
@@ -808,19 +807,17 @@ export function createWinding(
     render(dt);
     watch(raw);
   };
+  const loop = frameLoop(tick);
   const start = () => {
-    if (raf || opts.still || !ready) return;
+    if (loop.running || opts.still || !ready) return;
     last = performance.now();
-    raf = requestAnimationFrame(tick);
+    loop.start();
   };
-  const stop = () => {
-    cancelAnimationFrame(raf);
-    raf = 0;
-  };
+  const stop = () => loop.stop();
 
   const ro = new ResizeObserver(() => {
     frame();
-    if (ready && !raf) render(0);
+    if (ready && !loop.running) render(0);
   });
   ro.observe(canvas);
   const io = new IntersectionObserver(([e]) => {

@@ -7,13 +7,15 @@
  * covers the padding at the bottom of the section above (never its type).
  * Reduced motion: no wave, just the plain edge.
  */
+import { ScrollTrigger, reducedMotion } from './motion';
+
 const smooth = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
 };
 
 export function initWaveEdge(section: HTMLElement) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
+  if (reducedMotion) return () => {};
   let prev = section.previousElementSibling as HTMLElement | null;
   while (prev && prev.tagName !== 'SECTION') prev = prev.previousElementSibling as HTMLElement | null;
   if (!prev) return () => {};
@@ -61,24 +63,20 @@ export function initWaveEdge(section: HTMLElement) {
     path.setAttribute('d', d);
   };
 
-  let visible = false;
-  const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting), { rootMargin: '20% 0px' });
-  io.observe(section);
-  let raf = 0;
-  const tick = () => {
-    raf = requestAnimationFrame(tick);
-    if (!visible) return;
-    // 0 as the section's top enters at the bottom of the screen → 1 at 35% from the top
-    const top = section.getBoundingClientRect().top;
-    draw((innerHeight - top) / (innerHeight * 0.65));
-  };
   layout();
-  raf = requestAnimationFrame(tick);
-  addEventListener('resize', layout);
+  // 0 as the section's top enters at the bottom of the screen → 1 at 35% from the top
+  const st = ScrollTrigger.create({
+    trigger: section,
+    start: 'top bottom',
+    end: 'top 35%',
+    onUpdate: (self) => draw(self.progress),
+    onRefresh: (self) => {
+      layout();
+      draw(self.progress);
+    },
+  });
   return () => {
-    cancelAnimationFrame(raf);
-    io.disconnect();
-    removeEventListener('resize', layout);
+    st.kill();
     svg.remove();
     section.classList.remove('has-wave-edge');
   };

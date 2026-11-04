@@ -10,7 +10,7 @@
     (window as unknown as { lenis: Lenis }).lenis = lenis;
     // One loop: Lenis steps on GSAP's ticker, and ScrollTrigger reads Lenis's scroll.
     lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add((time) => lenis.raf(time * 1000));
+    gsap.ticker.add((time) => lenis.raf(time * 1000), false, true); // first, so every other frame callback reads this frame's scroll
     gsap.ticker.lagSmoothing(0);
     // Pause while the full-screen menu locks scrolling.
     new MutationObserver(() => {

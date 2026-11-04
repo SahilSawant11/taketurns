@@ -282,8 +282,8 @@ const pins = [
     setTimeout(() => root.classList.remove('is-revealing'), 3200);
   };
 
-  import('../scripts/winding')
-    .then(({ createWinding }) => {
+  Promise.all([import('../scripts/winding'), import('../scripts/motion')])
+    .then(([{ createWinding }, { ScrollTrigger }]) => {
       const api = createWinding(canvas, { still, onStage, onPins, intro: progress() < 0.02, onReady: reveal });
       // Dev aid: window.__hero.jump(p) snaps the scene to a scroll progress.
       if (import.meta.env.DEV) (window as unknown as { __hero: typeof api }).__hero = api;
@@ -292,17 +292,30 @@ const pins = [
         buttons.forEach((b, i) => b.addEventListener('click', () => api.jump(STAGE_FOCUS[i])));
         return;
       }
-      const onScroll = () => {
-        const p = progress();
+      // Progress through the pinned run: 0 at the hero's top → 1 when its bottom meets the screen's.
+      const onRun = (p: number) => {
         api.setProgress(p);
-        const r = root.getBoundingClientRect();
-        const exit = Math.min(1, Math.max(0, (innerHeight - r.bottom) / innerHeight));
-        api.setExit(exit);
-        root.style.setProperty('--exit', exit.toFixed(3));
         root.classList.toggle('is-scrolled', p > 0.01);
       };
-      addEventListener('scroll', onScroll, { passive: true });
-      onScroll();
+      ScrollTrigger.create({
+        trigger: root,
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate: (self) => onRun(self.progress),
+        onRefresh: (self) => onRun(self.progress),
+      });
+      // Exit: 0 while pinned → 1 once the hero has scrolled fully out of view.
+      const onExit = (e: number) => {
+        api.setExit(e);
+        root.style.setProperty('--exit', e.toFixed(3));
+      };
+      ScrollTrigger.create({
+        trigger: root,
+        start: 'bottom bottom',
+        end: 'bottom top',
+        onUpdate: (self) => onExit(self.progress),
+        onRefresh: (self) => onExit(self.progress),
+      });
       // Steps scroll the page to that point in the process.
       buttons.forEach((b) =>
         b.addEventListener('click', () => {

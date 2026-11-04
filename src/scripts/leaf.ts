@@ -19,6 +19,7 @@
  */
 import * as THREE from 'three';
 import { studioEnvironment } from './three/vessel';
+import { frameLoop } from './motion';
 
 type Pose = {
   x: number;
@@ -452,10 +453,8 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   };
   const ease = (dt: number, rate: number) => (opts.still ? 1 : 1 - Math.exp(-dt * rate));
 
-  let raf = 0;
   let last = performance.now();
   const tick = (now: number) => {
-    raf = requestAnimationFrame(tick);
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     if (dt <= 0) return;
@@ -552,7 +551,8 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
 
     renderer.render(scene, camera);
   };
-  raf = requestAnimationFrame(tick);
+  const loop = frameLoop(tick);
+  loop.start();
 
   addEventListener('resize', frame);
   const ro = new ResizeObserver(() => measure());
@@ -560,7 +560,7 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
 
   return {
     dispose() {
-      cancelAnimationFrame(raf);
+      loop.stop();
       removeEventListener('resize', frame);
       removeEventListener('pointermove', onPointer);
       ro.disconnect();
