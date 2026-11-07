@@ -243,7 +243,8 @@ type Look = {
 const LOOK: Record<string, Look> = {
   // FRP
   // resin-rich, with the surface veil inside it: glossy, a little translucent, smooth to the touch
-  liner: { tex: 'veil', relief: 0.25, colour: '#acd3b6', rough: 0.1, metal: 0, coat: 1, coatRough: 0.02, transmission: 0.2, thickness: 0.12 },
+  // (no transmission: it costs the viewer a second render of the scene on every frame it moves)
+  liner: { tex: 'veil', relief: 0.25, colour: '#acd3b6', rough: 0.1, metal: 0, coat: 1, coatRough: 0.02 },
   barrier: { tex: 'chopped', relief: 0.9, rough: 0.3, metal: 0, coat: 0.55, coatRough: 0.08 }, // chopped strand mat in resin
   structural: { tex: 'wound', relief: 6, rough: 0.34, metal: 0, coat: 0.45, coatRough: 0.1 }, // resin over the rovings
   exterior: { rough: 0.3, metal: 0, coat: 0.7, coatRough: 0.08 }, // gel coat

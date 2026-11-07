@@ -470,8 +470,8 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const c = new THREE.Color();
-    const roadsX = [-90, -30, 30, 90, 160];
-    const roadsZ = [-110, -50, 30, 90];
+    const roadsX = [-136, -74, 96, 158]; // = ROADS_X / ROADS_Z in scripts/blender/estate.py
+    const roadsZ = [-130, -68, 36, 98, 160];
     for (let i = 0; i < n; i++) {
       const alongX = r() < 0.5;
       const lane = alongX ? roadsZ[Math.floor(r() * roadsZ.length)] : roadsX[Math.floor(r() * roadsX.length)];
@@ -533,7 +533,7 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
   }
   // Neighbours' chimneys: no scrubbers.
   const chimneys: THREE.Vector3[] = [];
-  for (const [x, z, h, rad] of [[58, -22, 30, 1.3], [-62, 30, 26, 1.1], [80, 40, 22, 1.0], [-20, -70, 34, 1.5]] as const) {
+  for (const [x, z, h, rad] of [[-105, -6, 30, 1.3], [127, -22, 26, 1.1], [127, 66, 24, 1.0], [-38, -100, 34, 1.5]]  /* = CHIMNEYS in scripts/blender/estate.py */ as const) {
     add(new THREE.CylinderGeometry(rad * 0.8, rad, h, 24), brick, x, h / 2, z);
     for (let k = 0; k < 2; k++) ring(rad * 0.8, rad * 0.92, 0.5, h - 1 - k * 1.4, k ? steelGrey : brick).position.set(x, h - 1 - k * 1.4, z);
     chimneys.push(new THREE.Vector3(x, h, z));
@@ -564,30 +564,33 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
           return;
         }
         keep(mat);
-        m.castShadow = m.receiveShadow = true;
+        // their shadows are baked into the ground already: drawing them into the sun's shadow map too
+        // costs a whole extra pass of the estate every frame for nothing visible
+        m.castShadow = false;
+        m.receiveShadow = true;
       });
       // beyond the baked square: plain ground in the colour of its edge
       const outer = new THREE.Mesh(keep(new THREE.PlaneGeometry(2400, 2400)), keep(new THREE.MeshBasicMaterial({ color: edgeColour(groundTex) })));
       outer.rotation.x = -Math.PI / 2;
       outer.position.y = -0.05;
-      // trees: three kinds from Blender (round, oval, spreading), instanced; phones get the lighter meshes and half as many
-      const list = small ? trees.filter((_, i) => i % 2 === 0) : trees;
-      const geos: THREE.BufferGeometry[] = [];
-      if (kinds) {
-        for (const name of ['tree_round', 'tree_oval', 'tree_spread']) {
-          // gltfpack keeps the name on the node; the mesh may be the node or its child
-          let m: THREE.Mesh | undefined;
-          kinds.scene.getObjectByName(small ? `${name}_lo` : name)?.traverse((o) => {
-            if (!m && (o as THREE.Mesh).isMesh) m = o as THREE.Mesh;
-          });
-          if (m) geos.push(keep(m.geometry));
-        }
-      }
-      const blender = geos.length === 3;
+      // trees: three kinds from Blender (round, oval, spreading), instanced in tiles across the estate so
+      // the ones off screen are culled; the full meshes only near our plant (on desktop), the light ones beyond
+      const meshOf = (name: string) => {
+        // gltfpack keeps the name on the node; the mesh may be the node or its child
+        let m: THREE.Mesh | undefined;
+        kinds?.scene.getObjectByName(name)?.traverse((o) => {
+          if (!m && (o as THREE.Mesh).isMesh) m = o as THREE.Mesh;
+        });
+        return m ? keep(m.geometry) : null;
+      };
+      const full = ['tree_round', 'tree_oval', 'tree_spread'].map((n) => meshOf(n));
+      const light = ['tree_round', 'tree_oval', 'tree_spread'].map((n) => meshOf(`${n}_lo`));
+      const blender = full.every(Boolean) && light.every(Boolean);
+      let fallback: THREE.BufferGeometry | null = null;
       if (!blender) {
         const crown = (r: number, x: number, y: number, z: number) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z);
         const parts = small ? [crown(1, 0, 0.95, 0)] : [crown(1, 0, 1.0, 0), crown(0.7, 0.6, 0.75, 0.25), crown(0.62, -0.45, 0.8, -0.4)];
-        geos.push(keep(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)))));
+        fallback = keep(mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g))));
         parts.forEach((g) => g.dispose());
       }
       const treeMat = keep(
@@ -595,26 +598,39 @@ export function createPlant(renderer: THREE.WebGLRenderer, small: boolean) {
           ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }) // shade and AO are baked into the vertex colours
           : new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
       );
+      const TILE = 84; // m
+      const NEAR = 110; // m from our compound's middle: closer than this the camera can see the full mesh's detail
       const kindOf = (h: number) => (blender ? Math.floor(((h * 7.13) % 1) * 3) : 0);
-      const counts = geos.map((_, k) => list.filter(([, , , h]) => kindOf(h) === k).length);
-      const insts = geos.map((g, k) => new THREE.InstancedMesh(g, treeMat, counts[k]));
-      const fill = geos.map(() => 0);
+      const buckets = new Map<string, { geo: THREE.BufferGeometry; items: number[][] }>();
+      for (const t of trees) {
+        const [x, z, , h] = t;
+        const k = kindOf(h);
+        const near = !small && Math.hypot(x - 11, z + 16) < NEAR;
+        const geo = blender ? (near ? full[k]! : light[k]!) : fallback!;
+        const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)},${k},${near ? 1 : 0}`;
+        const b = buckets.get(key) ?? buckets.set(key, { geo, items: [] }).get(key)!;
+        b.items.push(t);
+      }
+      const insts: THREE.InstancedMesh[] = [];
       const mtx = new THREE.Matrix4();
       const q = new THREE.Quaternion();
       const c = new THREE.Color();
       const up = new THREE.Vector3(0, 1, 0);
-      for (const [x, z, sc, h] of list) {
-        const k = kindOf(h);
-        const i = fill[k]++;
-        q.setFromAxisAngle(up, h * 6.28);
-        if (blender) {
-          insts[k].setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.8, sc * 0.88, sc * 0.8)));
-          // a light tint over the baked green: no two trees quite the same shade
-          insts[k].setColorAt(i, c.setHSL(0.2 + h * 0.1, 0.3, 0.86 + ((h * 3.7) % 1) * 0.14));
-        } else {
-          insts[k].setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.85, sc * 0.95, sc * 0.85)));
-          insts[k].setColorAt(i, c.setHSL(0.24 + h * 0.07, 0.32 + h * 0.15, 0.22 + h * 0.09));
-        }
+      for (const { geo, items } of buckets.values()) {
+        const inst = new THREE.InstancedMesh(geo, treeMat, items.length);
+        items.forEach(([x, z, sc, h], i) => {
+          q.setFromAxisAngle(up, h * 6.28);
+          if (blender) {
+            inst.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.8, sc * 0.88, sc * 0.8)));
+            // a light tint over the baked green: no two trees quite the same shade
+            inst.setColorAt(i, c.setHSL(0.2 + h * 0.1, 0.3, 0.86 + ((h * 3.7) % 1) * 0.14));
+          } else {
+            inst.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(sc * 0.85, sc * 0.95, sc * 0.85)));
+            inst.setColorAt(i, c.setHSL(0.24 + h * 0.07, 0.32 + h * 0.15, 0.22 + h * 0.09));
+          }
+        });
+        inst.computeBoundingSphere(); // round this tile's trees, so the camera can cull it whole
+        insts.push(inst);
       }
       scene.remove(estate);
       scene.add(gltf.scene, outer, ...insts);

@@ -5,8 +5,12 @@ Run headless from the repo root:
 
     blender -b -P scripts/blender/estate.py -- /tmp/estate.glb public/models/estate-trees.json
 
-A road grid splits the estate into blocks; blocks split into compound
-plots, each with a building type typical of an Indian industrial estate:
+A planned estate: our plant in a walled compound at the centre, ring roads
+round it, and an even road grid beyond (one road every 62 m). Blocks hold
+one large factory or two plots side by side, in a set rhythm, each building
+filling most of its plot on a lawn, in a few muted roof and wall tones.
+Mature avenue trees line every road, a dense belt rings the estate, and
+groves fill a few plots. Building types are those of an Indian industrial estate:
 portal-frame sheds with ridge ventilators and skylight strips, north-light
 sawtooth factories, flat-roofed RCC blocks with parapets and black rooftop
 water tanks, container yards, and compound walls. Around the scrubber:
@@ -46,20 +50,24 @@ HALF = 210  # baked ground covers x, z in [-HALF, HALF]
 TEX = 2048
 SUN = Vector((0.55, -0.5, 0.62)).normalized()  # three's (0.55, 0.62, 0.5)
 
-ROADS_X = [-90, -30, 30, 90, 160]
-ROADS_Z = [-110, -50, 30, 90]
 ROAD_W = 7
-CHIMNEYS = [(58, -22, 30, 1.3), (-62, 30, 26, 1.1), (80, 40, 22, 1.0), (-20, -70, 34, 1.5)]
+PLANT = (-66, 88, -60, 28)  # our plant's walled compound: x0, x1, z0, z1
+# an even grid: ring roads hugging the compound, then one road every 62 m
+ROADS_X = [-136, -74, 96, 158]
+ROADS_Z = [-130, -68, 36, 98, 160]
+GATE_X = 60  # the compound's gate, on its south wall
+CHIMNEYS = [(-105, -6, 30, 1.3), (127, -22, 26, 1.1), (127, 66, 24, 1.0), (-38, -100, 34, 1.5)]  # in neighbours' plots
 TANK_FARM = (-34, -12)
 GLS_AT = (26, -34)
 RACK = (26, 14, 100)  # centre x, z, length
 PROCESS = (19, 3, 11, 14, 9)  # centre x, z, width (x), depth (z), height
-KEEP_OUT = [  # (x0, x1, z0, z1) in three terms
+KEEP_OUT = [  # our plant's features (x0, x1, z0, z1) in three terms
     (-24, 28, -19, 19),  # the scrubber's yard and the process building
     (-56, -12, -28, 4),  # tank farm
     (6, 44, -50, -18),  # GLS tanks
     (-28, 80, 9, 19),  # pipe rack
-] + [(x - 9, x + 9, z - 9, z + 9) for x, z, _, _ in CHIMNEYS]
+]
+CHIMNEY_BOXES = [(x - 9, x + 9, z - 9, z + 9) for x, z, _, _ in CHIMNEYS]
 
 rnd = random.Random(21)
 
@@ -96,8 +104,8 @@ def acc(k):
 
 
 # palette
-WALLS = ["#c9c3b4", "#bdbfb8", "#d4cdbd", "#aeb3ad", "#c8b998", "#d8d2c4"]
-ROOFS = ["#5f7a8c", "#4d6577", "#8a3f2e", "#7c8486", "#3f6a5a", "#a9adaa", "#2f5d86"]
+WALLS = ["#c4bfb2", "#b4b7b1"]  # two wall tones
+ROOFS = ["#8f969a", "#8f969a", "#5b7083", "#c2c3bd"]  # galvalume (most), slate blue, off-white
 CONTAINERS = ["#a03a2a", "#2a5f8f", "#c47a1e", "#2f6b4a", "#8a8f93", "#6a3d6e"]
 CONCRETE = "#a6a296"
 DARK_GLASS = "#3d5566"
@@ -209,8 +217,8 @@ def yard(x0, x1, z0, z1):
             acc("metal").box(B(cx, cz, 1.3 + s * 2.6), (6.1, 2.44, 2.59), hexc(rnd.choice(CONTAINERS)), rot=rot)
 
 
-def compound(x0, x1, z0, z1, gate_side):
-    """Compound wall round a plot with a gate gap."""
+def compound(x0, x1, z0, z1, gate_side, gate_at=None):
+    """Compound wall round a plot with a gate gap (centred, or at gate_at along that side)."""
     c = hexc("#cfc9bb")
     t, h = 0.25, 1.8
     edges = {
@@ -223,14 +231,15 @@ def compound(x0, x1, z0, z1, gate_side):
         length = math.hypot(bx - ax, bz - az)
         horiz = az == bz
         if side == gate_side:
-            seg = (length - 7) / 2
-            for k in (0, 1):
+            g = gate_at if gate_at is not None else ((ax + bx) / 2 if horiz else (az + bz) / 2)
+            lo, hi = (ax, bx) if horiz else (az, bz)
+            for (a, b) in ((lo, g - 3.5), (g + 3.5, hi)):
+                if b - a < 0.5:
+                    continue
                 if horiz:
-                    cx = ax + seg / 2 if k == 0 else bx - seg / 2
-                    acc("concrete").box(B(cx, az, h / 2), (seg, t, h), c)
+                    acc("concrete").box(B((a + b) / 2, az, h / 2), (b - a, t, h), c)
                 else:
-                    cz = az + seg / 2 if k == 0 else bz - seg / 2
-                    acc("concrete").box(B(ax, cz, h / 2), (t, seg, h), c)
+                    acc("concrete").box(B(ax, (a + b) / 2, h / 2), (t, b - a, h), c)
         else:
             acc("concrete").box(B((ax + bx) / 2, (az + bz) / 2, h / 2), ((length, t, h) if horiz else (t, length, h)), c)
 
@@ -238,7 +247,7 @@ def compound(x0, x1, z0, z1, gate_side):
 # ---------------------------------------------------------------- the ground plan
 ppm = TEX / (2 * HALF)
 albedo = np.zeros((TEX, TEX, 3), dtype=np.float32)
-albedo[:] = hexc("#8e8b7a")
+albedo[:] = hexc("#6d7455")  # muted green ground, not pale khaki: less glare between things
 noise = np.random.default_rng(3)
 albedo *= (0.94 + 0.12 * noise.random((TEX, TEX, 1))).astype(np.float32)
 
@@ -267,86 +276,188 @@ def blob(x, z, r, rgb, a):
     albedo[r0:r1, c0:c1] = albedo[r0:r1, c0:c1] * (1 - m) + np.array(rgb, dtype=np.float32) * m
 
 
-# scrubby grass and dry patches
-for _ in range(240):
+# a little unevenness in the grass
+for _ in range(160):
     g = rnd.random()
-    blob(rnd.uniform(-HALF, HALF), rnd.uniform(-HALF, HALF), rnd.uniform(6, 26), [0.36 + 0.1 * g, 0.44 + 0.08 * g, 0.27], 0.5)
-for _ in range(80):
-    blob(rnd.uniform(-HALF, HALF), rnd.uniform(-HALF, HALF), rnd.uniform(8, 20), hexc("#a39a82"), 0.4)
+    blob(rnd.uniform(-HALF, HALF), rnd.uniform(-HALF, HALF), rnd.uniform(8, 24), [0.33 + 0.06 * g, 0.4 + 0.06 * g, 0.26], 0.35)
 
-# plots in each block
-xs = [-HALF] + ROADS_X + [HALF]
-zs = [-HALF] + ROADS_Z + [HALF]
-lots = []
+LAWN = hexc("#74805a")
+APRON = hexc("#9b988e")  # concrete round a building and its drive: kept tight
 
 
-def split(r, depth=0):
-    x0, x1, z0, z1 = r
-    w, d = x1 - x0, z1 - z0
-    if (w < 52 and d < 52 and rnd.random() < 0.35) or (w < 32 and d < 32) or depth > 6:
-        lots.append(r)
-        return
-    if w > d:
-        k = x0 + w * rnd.uniform(0.35, 0.65)
-        split((x0, k, z0, z1), depth + 1)
-        split((k, x1, z0, z1), depth + 1)
-    else:
-        k = z0 + d * rnd.uniform(0.35, 0.65)
-        split((x0, x1, z0, k), depth + 1)
-        split((x0, x1, k, z1), depth + 1)
-
-
-inset = ROAD_W / 2 + 4
-for i in range(len(xs) - 1):
-    for j in range(len(zs) - 1):
-        bx0 = xs[i] + (inset if i > 0 else 0)
-        bx1 = xs[i + 1] - (inset if i < len(xs) - 2 else 0)
-        bz0 = zs[j] + (inset if j > 0 else 0)
-        bz1 = zs[j + 1] - (inset if j < len(zs) - 2 else 0)
-        if bx1 - bx0 > 20 and bz1 - bz0 > 20:
-            split((bx0, bx1, bz0, bz1))
-
-for lot in lots:
-    if overlaps(lot, KEEP_OUT):
-        continue
-    x0, x1, z0, z1 = lot
-    w, d = x1 - x0, z1 - z0
-    kind = rnd.random()
-    if kind < 0.1:  # left green
-        continue
-    paint(x0 + 0.5, x1 - 0.5, z0 + 0.5, z1 - 0.5, hexc(CONCRETE), jitter=0.12)
-    compound(x0 + 0.5, x1 - 0.5, z0 + 0.5, z1 - 0.5, rnd.choice("nsew"))
-    m = rnd.uniform(3, 6)
+def building(kind, x0, x1, z0, z1, gate):
+    """One plot: lawn inside a compound wall, the building filling most of it, a drive to the gate."""
+    paint(x0, x1, z0, z1, LAWN, jitter=0.06)
+    compound(x0, x1, z0, z1, gate)
+    m = 3.0
     bx0, bx1, bz0, bz1 = x0 + m, x1 - m, z0 + m, z1 - m
     if bx1 - bx0 < 8 or bz1 - bz0 < 8:
-        continue
-    if kind < 0.2:
-        yard(bx0, bx1, bz0, bz1)
-    elif kind < 0.62:
-        shed(bx0, bx1, bz0, bz1, rnd.uniform(6, 10.5))
-    elif kind < 0.78:
-        sawtooth(bx0, bx1, bz0, bz1, rnd.uniform(5.5, 8))
+        return
+    paint(bx0 - 1.5, bx1 + 1.5, bz0 - 1.5, bz1 + 1.5, APRON, jitter=0.05)
+    cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+    if gate in "ns":
+        paint(cx - 3, cx + 3, *((z1 - m, z1) if gate == "s" else (z0, z0 + m)), APRON)
     else:
-        # a block takes part of the plot; the rest is parking
-        k = rnd.uniform(0.45, 0.7)
+        paint(*((x1 - m, x1) if gate == "e" else (x0, x0 + m)), cz - 3, cz + 3, APRON)
+    if kind == "shed":
+        shed(bx0, bx1, bz0, bz1, rnd.uniform(7, 10))
+    elif kind == "sawtooth":
+        sawtooth(bx0, bx1, bz0, bz1, rnd.uniform(6, 8))
+    elif kind == "block":
+        k = 0.6
         if bx1 - bx0 > bz1 - bz0:
-            block(bx0, bx0 + (bx1 - bx0) * k, bz0, bz1, rnd.choice([7, 10.4, 13.8]))
+            block(bx0, bx0 + (bx1 - bx0) * k, bz0, bz1, rnd.choice([10.4, 13.8]))
+            yard(bx0 + (bx1 - bx0) * k + 2, bx1, bz0, bz1)
         else:
-            block(bx0, bx1, bz0, bz0 + (bz1 - bz0) * k, rnd.choice([7, 10.4, 13.8]))
+            block(bx0, bx1, bz0, bz0 + (bz1 - bz0) * k, rnd.choice([10.4, 13.8]))
+            yard(bx0, bx1, bz0 + (bz1 - bz0) * k + 2, bz1)
+
+
+def near_road_gate(x0, x1, z0, z1):
+    """The plot side facing the nearest road."""
+    d = {"n": min((abs(z0 - r) for r in ROADS_Z), default=1e9), "s": min((abs(z1 - r) for r in ROADS_Z), default=1e9),
+         "w": min((abs(x0 - r) for r in ROADS_X), default=1e9), "e": min((abs(x1 - r) for r in ROADS_X), default=1e9)}
+    return min(d, key=d.get)
+
+
+# blocks between the roads; south of the plant, the boulevard splits the middle column
+inset = ROAD_W / 2 + 7  # the verge each side of a road, where the avenue trees stand
+xs = [-HALF] + ROADS_X + [HALF]
+zs = [-HALF] + ROADS_Z + [HALF]
+lots = []  # (x0, x1, z0, z1, kind)
+groves = []
+for j in range(len(zs) - 1):
+    z0, z1 = zs[j] + (inset if j > 0 else 26), zs[j + 1] - (inset if j < len(zs) - 2 else 26)
+    xb = list(xs)
+    for i in range(len(xb) - 1):
+        a, b = xb[i], xb[i + 1]
+        x0 = a + (inset if i > 0 else 26)
+        x1 = b - (inset if i < len(xb) - 2 else 26)
+        if x1 - x0 < 20 or z1 - z0 < 20:
+            continue
+        if overlaps((x0, x1, z0, z1), [PLANT]):
+            continue
+        # a set rhythm: one large factory, or two plots side by side along the longer side
+        long_side = max(x1 - x0, z1 - z0)
+        n = max(2, round(long_side / 34))
+        if (i + j) % 3 == 0 and long_side < 60:
+            lots.append((x0, x1, z0, z1, "sawtooth" if (i * 7 + j) % 2 else "shed"))
+        else:
+            parts = []
+            for k in range(n):
+                if x1 - x0 >= z1 - z0:
+                    a = x0 + (x1 - x0) * k / n + (1.5 if k else 0)
+                    b = x0 + (x1 - x0) * (k + 1) / n - (1.5 if k < n - 1 else 0)
+                    parts.append((a, b, z0, z1))
+                else:
+                    a = z0 + (z1 - z0) * k / n + (1.5 if k else 0)
+                    b = z0 + (z1 - z0) * (k + 1) / n - (1.5 if k < n - 1 else 0)
+                    parts.append((x0, x1, a, b))
+            for n, pr in enumerate(parts):
+                lots.append((*pr, ["shed", "block", "shed", "sawtooth"][(i + j + n) % 4]))
+
+for x0, x1, z0, z1, kind in lots:
+    if overlaps((x0, x1, z0, z1), CHIMNEY_BOXES):
+        # a works with its chimney: the building takes the half away from the stack
+        cx, cz = next(((c[0], c[1]) for c in CHIMNEYS if overlaps((x0, x1, z0, z1), [(c[0] - 9, c[0] + 9, c[1] - 9, c[1] + 9)])))
+        paint(x0, x1, z0, z1, LAWN)
+        paint(cx - 8, cx + 8, cz - 8, cz + 8, APRON)
+        if x1 - x0 >= z1 - z0:
+            hx0, hx1 = (cx + 11, x1) if cx - x0 < x1 - cx else (x0, cx - 11)
+            if hx1 - hx0 > 12:
+                building("sawtooth", hx0, hx1, z0, z1, near_road_gate(hx0, hx1, z0, z1))
+        else:
+            hz0, hz1 = (cz + 11, z1) if cz - z0 < z1 - cz else (z0, cz - 11)
+            if hz1 - hz0 > 12:
+                building("sawtooth", x0, x1, hz0, hz1, near_road_gate(x0, x1, hz0, hz1))
+        continue
+    if rnd.random() < 0.12:  # a few plots are groves
+        paint(x0, x1, z0, z1, LAWN, jitter=0.08)
+        groves.append((x0, x1, z0, z1))
+        continue
+    building(kind, x0, x1, z0, z1, near_road_gate(x0, x1, z0, z1))
+
+# our plant's compound: a lawn inside its wall, a service road along the south, the gate on the boulevard
+px0, px1, pz0, pz1 = PLANT
+paint(px0, px1, pz0, pz1, hexc("#7a8460"))
+paint(GATE_X - 3.5, GATE_X + 3.5, 19, ROADS_Z[2], hexc("#5f605c"))  # in through the gate, from the road outside
+paint(-30, 84, 7, 21, hexc("#9d9a90"))  # under the pipe rack
+compound(px0, px1, pz0, pz1, "s", gate_at=GATE_X)
+# the rest of our site, east of the tanks: a finished-goods warehouse and the admin and control block
+PLANT_BUILDINGS = [(52, 84, -54, -30), (52, 78, -22, 2), (-62, -30, 6, 24), (-63, -28, -56, -28), (-14, 4, -50, -26), (31, 45, -10, 2), (55, 82, -28.5, -23.5)]
+paint(50.5, 85.5, -55.5, -28.5, APRON)
+shed(52, 84, -54, -30, 9.5)
+paint(50.5, 79.5, -23.5, 3.5, APRON)
+block(52, 78, -22, 2, 10.4)
+paint(78, 84, -14, -6, APRON)  # its drive to the rack road
+
+# an FRP induced-draft cooling tower: three cells, louvred sides, fan stacks on the deck
+CT = hexc("#c5ccc2")
+paint(-63, -29, 5, 25, APRON)
+acc("concrete").box(B(-46, 15, 0.6), (31, 15, 1.2), hexc("#b3afa4"))  # cold-water basin
+acc("frp").box(B(-46, 15, 5.2), (30, 13, 8.0), CT)
+for side in (-1, 1):
+    for k in range(6):
+        acc("glass").box(B(-58.5 + k * 5, 15 + side * 6.53, 3.4), (4.2, 0.06, 3.6), hexc("#3d4a4c"))  # air-inlet louvres
+acc("frp").box(B(-46, 15, 9.3), (30.4, 13.4, 0.3), CT)  # fan deck
+for k in range(3):
+    fx = -56 + k * 10
+    acc("frp").cyl(B(fx, 15, 9.4), 3.6, 3.2, hexc(FRP), segs=40, r2=3.9)  # fan stacks
+    acc("metal").cyl(B(fx, 15, 12.0), 0.5, 0.4, hexc(STEEL), segs=16)
+    for a in range(4):
+        ang = a / 4 * math.pi + k * 0.4
+        acc("metal").box(B(fx + math.cos(ang) * 1.6, 15 + math.sin(ang) * 1.6, 12.1), (3.2, 0.35, 0.08), hexc(STEEL), rot=ang)
+for x in (-60, -32):
+    acc("metal").bar(B(x, 8.3, 0.3), B(x, 8.3, 9.5), 0.03, hexc(GALV), segs=6)  # access ladders
+
+# effluent treatment: two clarifiers with their bridges, and an aeration basin
+paint(-64, -27, -57, -27, APRON)
+for cx in (-54, -37):
+    acc("concrete").ring(B(cx, -47, 0), 6.5, 7.2, 3.2, hexc("#b9b5aa"), segs=64)
+    acc("concrete").cyl(B(cx, -47, 2.4), 6.5, 0.05, hexc("#4b6a62"), segs=64)  # water
+    acc("metal").box(B(cx, -47, 3.6), (14.4, 0.9, 0.4), hexc(GALV))  # rotating bridge
+    acc("metal").cyl(B(cx, -47, 3.2), 0.9, 1.0, hexc(STEEL), segs=16)
+acc("concrete").box(B(-45.5, -32, 1.6), (34, 7, 3.2), hexc("#b9b5aa"))
+acc("concrete").box(B(-45.5, -32, 3.21), (32.8, 5.8, 0.02), hexc("#5d746a"))  # aerated water
+for k in range(6):
+    acc("metal").box(B(-60 + k * 5.8, -32, 3.5), (0.5, 6.4, 0.3), hexc(GALV))  # walkways and diffuser headers
+
+# a bank of horizontal FRP process vessels on saddles, with a header
+paint(-15, 5, -51, -25, APRON)
+for k, z in enumerate((-46, -38, -30)):
+    acc("frp").bar(B(-12, z, 2.3), B(2, z, 2.3), 1.9, hexc(FRP if k != 1 else FRP_PALE), segs=32)
+    for sx in (-9, -1):
+        acc("metal").box(B(sx, z, 0.8), (0.6, 3.2, 1.6), hexc(STEEL))
+    acc("frp").cyl(B(-5, z, 4.1), 0.35, 0.8, hexc(FRP), segs=16)  # top nozzle
+acc("frp").bar(B(-13, -42, 5.2), B(3, -42, 5.2), 0.22, hexc(FRP), segs=12)  # header
+acc("frp").bar(B(-13, -34, 5.2), B(3, -34, 5.2), 0.22, hexc(FRP_PALE), segs=12)
+
+# a pump house beside the process building, its FRP lines up to the rack
+paint(30, 46, -11, 3, APRON)
+acc("wall").box(B(38, -4, 2.6), (14, 12, 5.2), hexc("#c6c1b3"))
+acc("metal").box(B(38, -4, 5.35), (14.6, 12.6, 0.3), hexc(STEEL))
+for k in range(3):
+    acc("frp").bar(B(34 + k * 3, 2, 3.0), B(34 + k * 3, 12, 5.8), 0.2, hexc(FRP), segs=10)
+
+# road tankers loading at the warehouse
+for tx0 in (56, 69):
+    acc("metal").box(B(tx0 + 1.3, -26, 1.7), (2.6, 2.5, 2.4), hexc("#e3e2dc"))  # cab
+    acc("metal").box(B(tx0 + 6.5, -26, 0.75), (9.5, 2.3, 0.5), hexc(BLACK))  # chassis
+    acc("metal").bar(B(tx0 + 3, -26, 2.1), B(tx0 + 11.6, -26, 2.1), 1.15, hexc(GALV), segs=24)  # tank
 
 # roads on top of everything
+ROAD = hexc("#4b4c4a")
+KERB = hexc("#9e9b90")
 for x in ROADS_X:
-    paint(x - ROAD_W / 2, x + ROAD_W / 2, -HALF, HALF, hexc("#5a5b59"))
+    paint(x - ROAD_W / 2, x + ROAD_W / 2, -HALF, HALF, ROAD)
 for z in ROADS_Z:
-    paint(-HALF, HALF, z - ROAD_W / 2, z + ROAD_W / 2, hexc("#5a5b59"))
-# kerb lines
+    paint(-HALF, HALF, z - ROAD_W / 2, z + ROAD_W / 2, ROAD)
 for x in ROADS_X:
-    for s in (-1, 1):
-        paint(x + s * ROAD_W / 2 - 0.25, x + s * ROAD_W / 2 + 0.25, -HALF, HALF, hexc("#b9b6ab"))
+    for s_ in (-1, 1):
+        paint(x + s_ * ROAD_W / 2 - 0.25, x + s_ * ROAD_W / 2 + 0.25, -HALF, HALF, KERB)
 for z in ROADS_Z:
-    for s in (-1, 1):
-        paint(-HALF, HALF, z + s * ROAD_W / 2 - 0.25, z + s * ROAD_W / 2 + 0.25, hexc("#b9b6ab"))
-
+    for s_ in (-1, 1):
+        paint(-HALF, HALF, z + s_ * ROAD_W / 2 - 0.25, z + s_ * ROAD_W / 2 + 0.25, KERB)
 # ---------------------------------------------------------------- the scrubber's neighbours
 paint(-24, 28, -19, 19, hexc("#aeaba0"))  # the scrubber's yard
 # process building
@@ -431,11 +542,13 @@ for (x, z, h, r) in CHIMNEYS:
     acc("metal").bar(B(x + r + 0.15, z, 1.2), B(x + rr + 0.15, z, h - 0.5), 0.03, hexc(GALV), segs=5)
 
 # ---------------------------------------------------------------- trees (positions for three.js)
+# Mature avenue trees: crowns 10-14 m across (three.js draws a tree of scale s about 1.75 s across).
 trees = []
+BUILT = [(x0 - 1, x1 + 1, z0 - 1, z1 + 1) for x0, x1, z0, z1, _ in lots if (x0, x1, z0, z1) not in groves]
 
 
-def free_for_tree(x, z):
-    if abs(x) > HALF - 2 or abs(z) > HALF - 2:
+def free_for_tree(x, z, r=2.0):
+    if abs(x) > HALF - 3 or abs(z) > HALF - 3:
         return False
     for rx in ROADS_X:
         if abs(x - rx) < ROAD_W / 2 + 1.5:
@@ -443,34 +556,66 @@ def free_for_tree(x, z):
     for rzz in ROADS_Z:
         if abs(z - rzz) < ROAD_W / 2 + 1.5:
             return False
-    return not overlaps((x - 2, x + 2, z - 2, z + 2), KEEP_OUT)
+    box = (x - r, x + r, z - r, z + r)
+    return not overlaps(box, KEEP_OUT + CHIMNEY_BOXES)
 
 
+def avenue(along, fixed, a0, a1, side_off, spacing=(12, 15), size=(5.0, 6.8)):
+    """A row of trees along a road: along='x' runs in x at z=fixed."""
+    t = a0 + rnd.uniform(0, 6)
+    while t < a1:
+        o = side_off + rnd.uniform(-0.6, 0.6)
+        x, z = (t, fixed + o) if along == "x" else (fixed + o, t)
+        # stand back from the junctions, and from the plant's wall
+        near_junction = any(abs((x if along == "x" else z) - c) < ROAD_W / 2 + 7 for c in (ROADS_X if along == "x" else ROADS_Z))
+        if along == "x" and abs(x - GATE_X) < 9:
+            near_junction = True  # keep the gate clear
+        if not near_junction and free_for_tree(x, z) and not overlaps((x - 1, x + 1, z - 1, z + 1), [PLANT]):
+            trees.append((x, z, rnd.uniform(*size)))
+        t += rnd.uniform(*spacing)
+
+
+verge = ROAD_W / 2 + 5.5
 for rx in ROADS_X:
     for side in (-1, 1):
-        z = -HALF + rnd.uniform(0, 6)
-        while z < HALF:
-            x = rx + side * rnd.uniform(5.2, 6.4)
-            if free_for_tree(x, z):
-                trees.append((x, z, rnd.uniform(1.6, 3.0)))
-            z += rnd.uniform(6, 11)
+        avenue("z", rx, -HALF, HALF, side * verge)
 for rzz in ROADS_Z:
     for side in (-1, 1):
-        x = -HALF + rnd.uniform(0, 6)
-        while x < HALF:
-            z = rzz + side * rnd.uniform(5.2, 6.4)
-            if free_for_tree(x, z):
-                trees.append((x, z, rnd.uniform(1.6, 3.0)))
-            x += rnd.uniform(6, 11)
-# clumps in the green lots
-for lot in lots:
-    if overlaps(lot, KEEP_OUT) or rnd.random() < 0.85:
-        continue
-    x0, x1, z0, z1 = lot
-    for _ in range(rnd.randint(6, 16)):
-        x, z = rnd.uniform(x0 + 2, x1 - 2), rnd.uniform(z0 + 2, z1 - 2)
+        avenue("x", rzz, -HALF, HALF, side * verge)
+# a dense belt round the estate's edge: three staggered rows
+for row in range(3):
+    inset_b = 8 + row * 8
+    t = -HALF + inset_b
+    while t < HALF - inset_b:
+        for (x, z) in ((t, -HALF + inset_b), (t, HALF - inset_b), (-HALF + inset_b, t), (HALF - inset_b, t)):
+            x += rnd.uniform(-2, 2)
+            z += rnd.uniform(-2, 2)
+            if free_for_tree(x, z) and not overlaps((x - 3, x + 3, z - 3, z + 3), BUILT):
+                trees.append((x, z, rnd.uniform(5.5, 8.0)))
+        t += rnd.uniform(9, 12)
+# our plant's perimeter: a row inside the wall, clear of its kit
+px0, px1, pz0, pz1 = PLANT
+for (along, fixed, a0, a1) in (("x", pz0 + 5, px0 + 5, px1 - 5), ("x", pz1 - 4, px0 + 5, px1 - 5), ("z", px0 + 5, pz0 + 5, pz1 - 8), ("z", px1 - 5, pz0 + 5, pz1 - 8)):
+    t = a0
+    while t < a1:
+        x, z = (t, fixed) if along == "x" else (fixed, t)
+        at_gate = abs(x - GATE_X) < 8 and z > pz1 - 8
+        if free_for_tree(x, z, r=4) and not at_gate and not overlaps((x - 4, x + 4, z - 4, z + 4), PLANT_BUILDINGS):
+            trees.append((x, z, rnd.uniform(4.2, 5.6)))
+        t += rnd.uniform(11, 14)
+# groves, and a few landmark giants at junction corners
+for x0, x1, z0, z1 in groves:
+    for _ in range(int((x1 - x0) * (z1 - z0) / 140)):
+        x, z = rnd.uniform(x0 + 4, x1 - 4), rnd.uniform(z0 + 4, z1 - 4)
         if free_for_tree(x, z):
-            trees.append((x, z, rnd.uniform(2.0, 3.6)))
+            trees.append((x, z, rnd.uniform(5.0, 8.0)))
+for rx in ROADS_X:
+    for rzz in ROADS_Z:
+        if rnd.random() < 0.3:
+            x, z = rx + rnd.choice((-1, 1)) * (verge + 3), rzz + rnd.choice((-1, 1)) * (verge + 3)
+            if free_for_tree(x, z, r=4) and not overlaps((x - 4, x + 4, z - 4, z + 4), BUILT + [PLANT]):
+                trees.append((x, z, rnd.uniform(9.0, 10.5)))
+print(f"[estate] {len(lots)} plots, {len(groves)} groves")
 with open(TREES_OUT, "w") as f:
     json.dump({"trees": [[round(x, 2), round(z, 2), round(s, 2), round(rnd.random(), 3)] for x, z, s in trees]}, f, separators=(",", ":"))
 print(f"[estate] {len(trees)} trees → {TREES_OUT}")
@@ -502,7 +647,7 @@ bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=3.2, depth=0.1, location
 bake_only.append(bpy.context.object)
 tree_bm = bmesh.new()
 for x, z, s in trees:
-    bmesh.ops.create_icosphere(tree_bm, subdivisions=1, radius=s, matrix=Matrix.Translation(B(x, z, s * 0.95)) @ Matrix.Diagonal((1, 1, 1.15, 1)))
+    bmesh.ops.create_icosphere(tree_bm, subdivisions=2, radius=s * 0.88, matrix=Matrix.Translation(B(x, z, s * 1.05)) @ Matrix.Diagonal((1, 1, 0.85, 1)))
 tree_me = bpy.data.meshes.new("bake_trees")
 tree_bm.to_mesh(tree_me)
 tree_bm.free()

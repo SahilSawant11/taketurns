@@ -44,7 +44,7 @@ const SHOTS: Shot[] = [
   { pos: [1.6, 0.5, 13.8], look: [-0.4, 0.4, 0] }, // off the mandrel: low and wide, room above for the lift
 ];
 // Outside (plant coordinates: the scrubber at the origin, ground at y = 0).
-const AERIAL: Shot = { pos: [88, 92, 124], look: [-4, 0, -14] };
+const AERIAL: Shot = { pos: [113, 99, 139], look: [14, 0, -10] }; // our compound, edge to edge
 // Mid-winding close-up: low and near, on the laying point as the bands cross.
 const CLOSE: Shot = { pos: [2.3, 1.15, 4.2], look: [0.1, 0.45, 0.6] };
 
@@ -759,6 +759,8 @@ export function createWinding(
     gtao.scene = s;
     (bokeh as unknown as { scene: THREE.Scene }).scene = s;
     const out = s !== scene;
+    // ambient occlusion only in the shop: from the aerial it's invisible (the ground's is baked) but costs a pass
+    gtao.enabled = !out && !small && tier < 1;
     camera.near = out ? 0.5 : 0.1;
     camera.far = out ? 1400 : 80;
     camera.updateProjectionMatrix();
