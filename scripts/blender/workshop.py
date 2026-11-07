@@ -6,7 +6,7 @@ Run headless from the repo root:
     blender -b -P scripts/blender/workshop.py -- /tmp/workshop.glb
 
 A steel portal-frame shop: I-section columns, Pratt roof trusses, purlins,
-dark cladding with high window strips, skylight panels, high-bay lamps and
+light cladding with tall window strips, skylight panels, high-bay lamps and
 an overhead travelling crane on runway girders. Over the machine, a
 trimmed roof opening with two hatch doors (exported as separate objects,
 ws_hatch_l and ws_hatch_r, that three.js slides apart during the lift).
@@ -80,9 +80,9 @@ def box(k, c, size, rgb, rot=0.0):
     a.box(c, (size[0], size[2], size[1]), rgb, rot=rot)
 
 
-STEEL = hexc("#2b2e30")
-STEEL_LIGHT = hexc("#3a3e41")
-CLAD = hexc("#1f2223")
+STEEL = hexc("#5b6870")  # blue-grey painted steel
+STEEL_LIGHT = hexc("#76838b")
+CLAD = hexc("#b4b8b5")  # light insulated panel, as in a modern daylit shop
 CRANE = hexc("#8a6a1c")
 WHITE = [1, 1, 1]
 
@@ -206,19 +206,27 @@ for z0, z1 in zip(FRAMES_Z, FRAMES_Z[1:]):
             acc(k).poly([W(xa, ya, z0), W(xb, yb, z0), W(xb, yb, z1), W(xa, ya, z1)], rgb)
 
 # ---------------------------------------------------------------- walls: cladding, window strips, a roller door
+# The sun comes in from the left (x < 0): that wall has tall glazing, the right a strip.
+WIN_L = (2.4, 8.4)  # sill and head of the left wall's glazing (src/scripts/three/sun.ts matches)
 for s in (-1, 1):
     x = s * (HALF_W + 0.3)
-    box("clad", W(x, 2.0, -3), (0.1, 4.0, 36), CLAD)  # lower wall
-    box("glow_window", W(x, 5.0, -3), (0.06, 1.6, 34), WHITE)  # window strip
-    box("clad", W(x, 8.6, -3), (0.1, 5.6, 36), CLAD)  # upper wall
-    for z in FRAMES_Z:  # mullions over the strip
-        box("steel", W(x - s * 0.05, 5.0, z), (0.12, 1.7, 0.15), STEEL)
+    y0, y1 = WIN_L if s < 0 else (4.2, 5.8)
+    box("clad", W(x, y0 / 2, -3), (0.1, y0, 36), CLAD)  # lower wall
+    box("glow_window", W(x, (y0 + y1) / 2, -3), (0.06, y1 - y0, 34), WHITE)  # glazing
+    box("clad", W(x, (y1 + 11.4) / 2, -3), (0.1, 11.4 - y1, 36), CLAD)  # upper wall
+    for z in FRAMES_Z:  # mullions at the frames, and lighter ones between
+        box("steel", W(x - s * 0.05, (y0 + y1) / 2, z), (0.14, y1 - y0 + 0.1, 0.18), STEEL)
+        if z < FRAMES_Z[-1]:
+            for k in (1, 2):
+                box("steel", W(x - s * 0.05, (y0 + y1) / 2, z + 2 * k), (0.1, y1 - y0, 0.07), STEEL)
+    if s < 0:
+        box("steel", W(x - s * 0.05, (y0 + y1) / 2, -3), (0.1, 0.07, 36), STEEL)  # transom
 back = FRAMES_Z[0] - 0.3
 box("clad", W(0, 6.0, back), (2 * HALF_W + 0.6, 12.0, 0.1), CLAD)
-box("misc", W(6.5, 3.0, back + 0.08), (5.0, 6.0, 0.06), hexc("#3d4245"))  # roller shutter
+box("misc", W(6.5, 3.0, back + 0.08), (5.0, 6.0, 0.06), hexc("#8a949a"))  # roller shutter
 for i in range(24):
-    box("steel", W(6.5, 0.2 + i * 0.25, back + 0.12), (5.0, 0.02, 0.02), hexc("#2c3033"))
-box("glow_window", W(-4, 9.4, back + 0.06), (18, 1.4, 0.05), WHITE)  # high window strip
+    box("steel", W(6.5, 0.2 + i * 0.25, back + 0.12), (5.0, 0.02, 0.02), hexc("#737c82"))
+box("glow_window", W(-4, 9.0, back + 0.06), (18, 2.4, 0.05), WHITE)  # high window strip
 
 # ---------------------------------------------------------------- lamps under the trusses
 for z in (-18, -12, -6, 6, 12):

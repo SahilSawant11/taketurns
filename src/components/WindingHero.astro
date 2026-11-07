@@ -91,8 +91,11 @@ const pins = [
   .wh__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; touch-action: pan-y; }
   .wh__fx {
     position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    /* Daylit, shop and site alike: shade the top and the rail side so the white type stays readable. */
     background:
-      radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.6) 100%),
+      radial-gradient(120% 90% at 50% 40%, transparent 60%, rgba(0,0,0,.28) 100%),
+      linear-gradient(180deg, rgba(13,13,13,.5) 0%, rgba(13,13,13,0) 16%),
+      linear-gradient(270deg, rgba(13,13,13,.45) 0%, rgba(13,13,13,0) 26%),
       linear-gradient(0deg, rgba(13,13,13,.88) 0%, rgba(13,13,13,0) 42%);
   }
   /* Hand-off: the lower frame fades into the next section's colour as the hero scrolls away. */
@@ -140,14 +143,6 @@ const pins = [
   .wh__bar { grid-column: 2; height: 1px; background: var(--line); margin-top: 6px; position: relative; overflow: hidden; }
   .wh__bar i { position: absolute; inset: 0; background: var(--ink); transform-origin: left; transform: scaleX(var(--p, 0)); }
 
-  /* Outside in daylight: shade the top and the rail side so the white type stays readable. */
-  .wh.is-out .wh__fx {
-    background:
-      linear-gradient(180deg, rgba(13,13,13,.5) 0%, rgba(13,13,13,0) 16%),
-      linear-gradient(270deg, rgba(13,13,13,.45) 0%, rgba(13,13,13,0) 26%),
-      linear-gradient(0deg, rgba(13,13,13,.88) 0%, rgba(13,13,13,0) 42%);
-  }
-
   /* Pins over the FRP in the plant view: a dot on the object, a label above it. */
   .wh__pins { position: absolute; inset: 0; pointer-events: none; opacity: var(--pins, 0); }
   .wh__pins[inert] { visibility: hidden; }
@@ -165,10 +160,10 @@ const pins = [
   /* near the right edge the label sits to the left of its dot */
   .wh__pin.is-left { flex-direction: row-reverse; transform: translate(calc(var(--x) * 1px - 100% + 6px), calc(var(--y) * 1px - 6px)); }
   /* the step rail over bright daylight */
-  .wh.is-out .wh__rail button { color: rgba(255, 255, 255, .78); text-shadow: 0 1px 10px rgba(0, 0, 0, .55); }
-  .wh.is-out .wh__rail button[aria-current] { color: #fff; }
-  .wh.is-out .wh__bar { background: rgba(255, 255, 255, .35); }
-  .wh.is-out .wh__bar i { background: #fff; }
+  .wh .wh__rail button { color: rgba(255, 255, 255, .78); text-shadow: 0 1px 10px rgba(0, 0, 0, .55); }
+  .wh .wh__rail button[aria-current] { color: #fff; }
+  .wh .wh__bar { background: rgba(255, 255, 255, .35); }
+  .wh .wh__bar i { background: #fff; }
 
   .wh__hint { position: absolute; left: var(--gutter); bottom: 22px; transition: opacity .4s; }
   .wh__note { position: absolute; right: var(--gutter); bottom: 22px; }

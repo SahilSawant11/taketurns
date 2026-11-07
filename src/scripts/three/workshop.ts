@@ -4,15 +4,15 @@
  * trusses, an overhead crane, window strips, skylights, high-bay lamps, a
  * roof opening with sliding hatch doors over the machine, and a shop floor
  * dressed for filament winding. Until it loads (or if it can't) the simple
- * procedural room below stands in. Either way the fog turns it into
- * silhouettes; it's there for a sense of place and scale. No shadows.
+ * procedural room below stands in. Daylit: light cladding, sun through the
+ * left glazing (sun.ts), a pale haze for depth. No shadows.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
-const WINDOW = new THREE.Color('#8ea3b4');
-const SKY = new THREE.Color('#a9bccb');
+const WINDOW = new THREE.Color('#dfe7ee'); // daylight through the glazing
+const SKY = new THREE.Color('#e4ebf0');
 const LAMP = new THREE.Color('#ffe0b0');
 
 export function createWorkshop(floorY: number) {
@@ -23,8 +23,8 @@ export function createWorkshop(floorY: number) {
   const yellow = new THREE.MeshStandardMaterial({ color: '#4a3f1c', metalness: 0.3, roughness: 0.6 }); // crane paint, dulled
   const tankMat = new THREE.MeshStandardMaterial({ color: '#1a3326', roughness: 0.45, metalness: 0.05 });
   const boxMat = new THREE.MeshStandardMaterial({ color: '#2a2622', roughness: 0.9 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: '#0c0d0d', roughness: 1 });
-  const windowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#8ea3b4').multiplyScalar(0.55) });
+  const wallMat = new THREE.MeshStandardMaterial({ color: '#b4b8b5', roughness: 0.9 });
+  const windowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#8ea3b4').multiplyScalar(2.4) });
   const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffe0b0').multiplyScalar(3.2) });
   const disposables: { dispose(): void }[] = [steel, yellow, tankMat, boxMat, wallMat, windowMat, lampMat];
   const geo = <T extends THREE.BufferGeometry>(x: T) => (disposables.push(x), x);
@@ -124,7 +124,7 @@ export function createWorkshop(floorY: number) {
       uniforms: { uA: { value: a }, uY: { value: floorY } },
       vertexShader: 'varying float vY; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vY = w.y; gl_Position = projectionMatrix * viewMatrix * w; }',
       fragmentShader:
-        'uniform float uA, uY; varying float vY; void main(){ gl_FragColor = vec4(0.004, 0.004, 0.004, uA * smoothstep(uY, uY + 2.5, vY)); }',
+        'uniform float uA, uY; varying float vY; void main(){ gl_FragColor = vec4(0.4, 0.43, 0.45, 0.18 * uA * smoothstep(uY, uY + 2.5, vY)); }',
     });
   const hazeGeo = geo(new THREE.PlaneGeometry(120, 40));
   const air: THREE.Object3D[] = [];
@@ -152,7 +152,7 @@ export function createWorkshop(floorY: number) {
         if (!m.isMesh) return;
         disposables.push(m.geometry);
         const name = (m.material as THREE.Material).name;
-        const glow = name.includes('glow_window') ? [WINDOW, 0.55] : name.includes('glow_sky') ? [SKY, 0.32] : name.includes('glow_lamp') ? [LAMP, 3.2] : null;
+        const glow = name.includes('glow_window') ? [WINDOW, 2.4] : name.includes('glow_sky') ? [SKY, 1.5] : name.includes('glow_lamp') ? [LAMP, 1.6] : null;
         if (glow) {
           (m.material as THREE.Material).dispose();
           const mat = new THREE.MeshBasicMaterial({ color: (glow[0] as THREE.Color).clone().multiplyScalar((glow[1] as number) * level) });
@@ -188,8 +188,8 @@ export function createWorkshop(floorY: number) {
     /** 0 dark → 1 normal, for the intro and the hand-off. */
     setLevel(k: number) {
       level = k;
-      lampMat.color.set('#ffe0b0').multiplyScalar(3.2 * k);
-      windowMat.color.set('#8ea3b4').multiplyScalar(0.55 * k);
+      lampMat.color.copy(LAMP).multiplyScalar(1.6 * k);
+      windowMat.color.copy(WINDOW).multiplyScalar(2.4 * k);
       glows.forEach((gl) => gl.mat.color.copy(gl.base).multiplyScalar(gl.k * k));
     },
     dispose() {

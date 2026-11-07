@@ -209,10 +209,10 @@ export function studio(renderer: THREE.WebGLRenderer, scene: THREE.Scene, bg = '
 }
 
 /** Dark, slightly glossy floor that fades into the fog. */
-export function floor(y: number) {
+export function floor(y: number, color = '#0e0e0e', roughness = 0.42) {
   const m = new THREE.Mesh(
     new THREE.CircleGeometry(40, 64),
-    new THREE.MeshStandardMaterial({ color: '#0e0e0e', roughness: 0.42, metalness: 0.2 }),
+    new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.2 }),
   );
   m.rotation.x = -Math.PI / 2;
   m.position.y = y;

@@ -25,12 +25,15 @@ import { HEAD_TURN, createTow, spoolTexture } from './three/tow';
 import { createBeam, createDust, createVapour } from './three/atmosphere';
 import { createHeater } from './three/heater';
 import { createWorkshop } from './three/workshop';
+import { createSun } from './three/sun';
 import { createPlant, type PinId } from './three/plant';
 
 const IDLE_REVS = 0.6; // gentle mandrel turn before winding starts
 const IDLE_RPS = 0.12; // slow turn of the bare mandrel while the visitor reads
 const INTRO_S = 2.6; // lights-up and dolly-in on first load
 const FLOOR_Y = -1.6;
+/** Daylit shop air: the background and fog the room fades into. */
+const SHOP_AIR = new THREE.Color('#aeb3b6'); // cool shade; the sun brings the warmth
 const smooth = (x: number) => THREE.MathUtils.smootherstep(x, 0, 1);
 const clamp01 = (x: number) => THREE.MathUtils.clamp(x, 0, 1);
 
@@ -79,16 +82,18 @@ export function createWinding(
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0d0d0d');
-  scene.fog = new THREE.Fog('#0d0d0d', 15, 32);
+  scene.background = SHOP_AIR.clone();
+  scene.fog = new THREE.Fog(SHOP_AIR.clone(), 22, 80);
   const envTex = studioEnvironment(renderer);
   scene.environment = envTex;
-  scene.environmentIntensity = 0.34;
+  scene.environmentIntensity = 0.8;
 
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
 
-  // Lights: overhead key spot (shadows), cool rim, cure glow.
-  const key = new THREE.SpotLight('#f3f5f7', 44, 34, 0.7, 1, 1.1);
+  // Lights: the sun through the left glazing, overhead key spot (shadows), cool rim, cure glow.
+  const sun = createSun(FLOOR_Y);
+  scene.add(sun.object);
+  const key = new THREE.SpotLight('#f6f3ee', 44, 34, 0.7, 1, 1.1);
   key.position.set(-3, 9, 5);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -102,7 +107,7 @@ export function createWinding(
   const cureGlow = new THREE.PointLight('#ffe6c4', 0, 10, 1.4);
   cureGlow.position.set(0, 0.6, 1.8);
   scene.add(cureGlow);
-  scene.add(floor(FLOOR_Y));
+  scene.add(floor(FLOOR_Y, '#8c8a84', 0.5)); // sealed concrete, daylit
   // Faint workshop grid on the floor.
   const grid = new THREE.GridHelper(40, 80, '#2c3a33', '#1d2621');
   grid.position.y = -1.595;
@@ -593,12 +598,16 @@ export function createWinding(
     // Lights come up on first load, and close down as the hero scrolls away.
     const out = 1 - 0.85 * smooth(exit);
     const kIn = smooth(clamp01(intro * 1.35)) * out;
-    key.intensity = 44 * kIn;
+    key.intensity = 34 * kIn;
     rim.intensity = 2.2 * smooth(clamp01(intro * 1.35 - 0.3)) * out;
-    scene.environmentIntensity = 0.34 * smooth(clamp01(intro * 1.2 - 0.1)) * out;
+    scene.environmentIntensity = 0.8 * smooth(clamp01(intro * 1.2 - 0.1)) * out;
+    // daylight: the room's air comes up with the lights; the shafts give way to the open roof
+    (scene.background as THREE.Color).copy(SHOP_AIR).multiplyScalar(kIn);
+    scene.fog!.color.copy(SHOP_AIR).multiplyScalar(kIn);
+    sun.update(t, kIn, 1 - open);
     workshop.setLevel(kIn);
     dust.update(t, smooth(clamp01(intro * 1.2 - 0.2)) * (1 - 0.6 * onCradle));
-    beam.update(0.022 * kIn * (1 - 0.7 * glow) * (1 - open));
+    beam.update(0.008 * kIn * (1 - 0.7 * glow) * (1 - open));
 
     // White-out: the eye adjusting to daylight hides the cut from shop to site.
     flash = s4 ? smooth(clamp01((work - 0.8) / 0.2)) : st === 5 ? 1 - smooth(clamp01(frac / MOVE)) : 0;
@@ -735,7 +744,7 @@ export function createWinding(
   // The light shaft is air, not a surface: keep it out of passes that re-render depth.
   const skipAir = (pass: GTAOPass | BokehPass) => {
     const inner = pass.render.bind(pass) as (...a: unknown[]) => void;
-    const air = [beam.object, ...workshop.air];
+    const air = [beam.object, sun.shafts, ...workshop.air];
     pass.render = ((...args: unknown[]) => {
       const was = air.map((o) => o.visible);
       air.forEach((o) => (o.visible = false));
