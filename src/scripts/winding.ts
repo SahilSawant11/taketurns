@@ -48,6 +48,10 @@ const SHOTS: Shot[] = [
 ];
 // Outside (plant coordinates: the scrubber at the origin, ground at y = 0).
 const AERIAL: Shot = { pos: [113, 99, 139], look: [14, 0, -10] }; // our compound, edge to edge
+/** Narrow screens' pull-back in the aerial (the shop's is up to 1.76 on a phone): closer, so the labels spread out. */
+const AERIAL_PULL = 1.05;
+/** ...and the view slid a little left, where a phone's narrow frame would crop the chemical tanks. */
+const AERIAL_NARROW_SHIFT = new THREE.Vector3(-0.83, 0, 0.55).multiplyScalar(9);
 // Mid-winding close-up: low and near, on the laying point as the bands cross.
 const CLOSE: Shot = { pos: [2.3, 1.15, 4.2], look: [0.1, 0.45, 0.6] };
 
@@ -678,10 +682,17 @@ export function createWinding(
       pos.lerp(a.fromArray(CLOSE.pos), close).y += 0.6 * Math.sin(Math.PI * close);
       look.lerp(a.fromArray(CLOSE.look), close);
     }
-    // Narrow screens: pull back along the view line so the machine still fits.
+    // Narrow screens: pull back along the view line so the machine still fits. Rising into the
+    // aerial, ease most of that off: the compound fills the frame and its labels have room.
     // First load: start further out and settle in.
     const dolly = 1 + 0.24 * (1 - smooth(clamp01(intro)));
-    pos.sub(look).multiplyScalar(pullBack * dolly).add(look);
+    const pb = to === AERIAL ? THREE.MathUtils.lerp(pullBack, Math.min(pullBack, AERIAL_PULL), ct) : pullBack;
+    pos.sub(look).multiplyScalar(pb * dolly).add(look);
+    if (to === AERIAL && pullBack > 1) {
+      const k = ct * clamp01((pullBack - 1) / 0.76); // full on a phone, partly on a tall tablet
+      pos.addScaledVector(AERIAL_NARROW_SHIFT, k);
+      look.addScaledVector(AERIAL_NARROW_SHIFT, k);
+    }
     // Hand-off: the page carries the canvas up, so only its lower part stays on
     // screen. Drop the camera and tilt up: the vessel sinks into that part of
     // the frame and ends on a low, heroic angle as the light closes down.
