@@ -202,8 +202,15 @@ const facts = [
           <a class="btn btn--ghost" href="/materials/">Compare materials</a>
         </div>
       </div>
-      <!-- Clear stage where the leaf comes to rest (see scripts/leaf.ts). -->
+      <!-- Still water where the leaf comes down (scripts/leaf.ts): a Cycles render (scripts/blender/pond.py).
+           Empty until the live leaf touches down, then the landing plays and hands on to the loop afloat. -->
       <div class="finale__stage" aria-hidden="true">
+        <div class="finale__water" data-water>
+          <img src="/finale/pond-empty.webp" alt="" loading="lazy" decoding="async" data-water-empty />
+          <video muted playsinline preload="none" data-water-loop loop><source src="/finale/pond-loop.mp4" type="video/mp4" /></video>
+          <video muted playsinline preload="none" data-water-land><source src="/finale/pond-land.mp4" type="video/mp4" /></video>
+          <img src="/finale/pond-afloat.webp" alt="" loading="lazy" decoding="async" data-water-still />
+        </div>
         <p class="label">Kept clean by design</p>
       </div>
     </div>
@@ -281,17 +288,38 @@ const facts = [
 
   .finale { padding-block: clamp(120px, 16vw, 240px); }
   .finale__row { display: grid; gap: 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: end; margin-top: clamp(48px, 7vw, 96px); }
-  .finale__stage { height: clamp(420px, 70vh, 760px); margin-top: clamp(48px, 8vw, 120px); display: flex; align-items: flex-end; justify-content: center; border-top: 1px solid var(--line); padding-bottom: 8px; }
+  .finale__stage { position: relative; height: clamp(420px, 70vh, 760px); margin-top: clamp(48px, 8vw, 120px); display: flex; align-items: flex-end; justify-content: center; border-top: 1px solid var(--line); padding-bottom: 8px; }
+  .finale__stage .label { position: relative; }
+  /* The water fills the stage and fades into the section at its edges, like a pool in a clearing. */
+  .finale__water {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 50%, transparent 100%);
+    mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 50%, transparent 100%);
+  }
+  .finale__water > * { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .15s linear; }
+  /* one layer at a time: empty water, the landing, the loop afloat (or, without motion, a still of it afloat) */
+  .finale__water > :not(.is-on) { opacity: 0; }
+  /* Phones (leaf.ts: narrow, NARROW_ZOOM): covering a tall stage would crop the frame to the leaf alone.
+     Show it at 1.9× the stage's width instead, centred, the pool fading out at the frame's own edges. */
+  @media (max-width: 759.98px) {
+    .finale__water {
+      -webkit-mask-image: radial-gradient(ellipse 50% calc((100vw - 2 * var(--gutter)) * 0.475) at 50% 50%, #000 45%, transparent 100%);
+      mask-image: radial-gradient(ellipse 50% calc((100vw - 2 * var(--gutter)) * 0.475) at 50% 50%, #000 45%, transparent 100%);
+    }
+    .finale__water > * { inset: auto; left: 50%; top: 50%; width: 190%; max-width: none; height: auto; aspect-ratio: 2 / 1; transform: translate(-50%, -50%); }
+  }
   .finale__cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; }
   @media (min-width: 900px) { .finale__cta { justify-content: flex-end; } }
 </style>
 
 <script>
   import { initWaveEdge } from '../scripts/waveEdge';
+  import { initWater } from '../scripts/water';
   import { initLineReveal } from '../scripts/lineReveal';
   // the one transition: statement → materials rises in a soft wave
   document.querySelectorAll<HTMLElement>('[data-wave-edge]').forEach((el) => initWaveEdge(el));
   document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => initLineReveal(el));
+  document.querySelectorAll<HTMLElement>('[data-water]').forEach((el) => initWater(el));
 
   document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];

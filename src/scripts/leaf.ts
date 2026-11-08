@@ -6,10 +6,12 @@
  * flutter. Between sections it glides down to the next one the way a real
  * leaf falls: swinging side to side, banking into each swing, and turning
  * over once mid-fall. Its colour flips with each section: pale and backlit on
- * dark and green, deep green on bone. In the finale it drifts down to a cut peepal
- * sprig centred over the finale's stage (scripts/blender/twig.py), catches
- * it by its stalk and swings down to hang there beside an older leaf and a
- * young copper one, swaying on its stalk.
+ * dark and green, deep green on bone. In the finale it drifts down onto the
+ * still water filling the finale's stage (a Cycles render, scripts/blender/
+ * pond.py): on the way it takes the rendered leaf's angle, size and colour,
+ * and at touchdown it hands off to the render, which plays the landing (rings,
+ * a bob) and then floats in a loop. Scrolling back up lifts it off again.
+ * The page's script (index.astro) plays the water on 'leaf:land' / 'leaf:lift'.
  *
  * One fixed, click-through canvas sits over the page. Sections opt in with
  * data-float="<pose>"; a pose is laid out relative to its section's top (or a
@@ -22,15 +24,13 @@
 import * as THREE from 'three';
 import { studioEnvironment } from './three/vessel';
 import { frameLoop } from './motion';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 type Pose = {
   x: number;
   y: number;
   s: number; // leaf length (world units)
   opacity: number;
-  rest: number; // 0–1 hanging from the finale's twig
+  rest: number; // 0–1 afloat on the finale's water
 };
 const KEYS: (keyof Pose)[] = ['x', 'y', 's', 'opacity', 'rest'];
 const pose = (p: Partial<Pose>): Pose => ({ x: 0, y: 0, s: 0.5, opacity: 1, rest: 0, ...p });
@@ -42,7 +42,7 @@ function plumeAt(A: number) {
 }
 
 /** Beside each headline (they all sit on the left), off-screen during dense sections. */
-function poseFor(name: string, A: number, narrow: boolean): Pose {
+function poseFor(name: string, A: number, narrow: boolean, afloat = AFLOAT0): Pose {
   // Born in the clean plume at the end of the hero: tiny and unseen, then rising out of it.
   if (name === 'plume') return pose({ ...plumeAt(A), s: 0.05, opacity: 0 });
   if (name === 'rise') {
@@ -60,7 +60,7 @@ function poseFor(name: string, A: number, narrow: boolean): Pose {
       case 'apps': return pose({ x: A * 0.68, y: top(0.19), s: 0.19 });
       case 'work': return pose({ x: A * 0.68, y: top(0.19), s: 0.19 });
       case 'proof': return pose({ x: -A * 0.2, y: 1.0, s: 0.22, opacity: 0 });
-      case 'finale': return hanging(twigNode(true));
+      case 'finale': return pose({ ...afloat, rest: 1 });
       default: return pose({ x: A * 0.3, y: 1.4, s: 0.2, opacity: 0 });
     }
   }
@@ -74,34 +74,27 @@ function poseFor(name: string, A: number, narrow: boolean): Pose {
     case 'work': return pose({ x: A * 0.56, y: -0.6, s: 0.4 });
     // waits above the screen, so the finale is a drift down from overhead
     case 'proof': return pose({ x: -A * 0.25, y: 1.0, s: 0.44, opacity: 0 });
-    // comes to hang from the twig over the finale's stage
-    case 'finale': return hanging(twigNode(false));
+    // comes down onto the water in the finale's stage
+    case 'finale': return pose({ ...afloat, rest: 1 });
     default: return pose({ x: A * 0.55, y: 1.5, s: 0.46, opacity: 0 });
   }
 }
 
-// ---------- the finale's twig ----------
-/** The sprig's middle, from its bud's tip (−0.45) to its cut end (2.35), in leaf lengths from the hero leaf's node. */
-const SPRIG_MID = 0.95;
-/** Where the leaf's stalk meets the twig, relative to the finale stage's top, and the leaf's size there: the sprig sits centred. */
-function twigNode(narrow: boolean) {
-  const s = narrow ? 0.26 : 0.46;
-  return { x: -SPRIG_MID * s, y: narrow ? -0.4 : -0.42, s };
-}
-/** Hanging from the twig: tip down and to the right, tipped a little towards us. */
-const HANG = { roll: -2.55, pitch: -0.35 };
-/** The pose for a leaf hanging from a node: its centre is about 0.62 leaf-lengths out along the blade. */
-function hanging(n: { x: number; y: number; s: number }) {
-  const r = 0.62 * n.s;
-  return pose({ x: n.x - Math.sin(HANG.roll) * r, y: n.y + Math.cos(HANG.roll) * r * Math.cos(HANG.pitch), s: n.s, rest: 1 });
-}
-/** The end of a leaf's stalk in its own (bent) space, for hanging it by that point. */
-function stalkEnd(u: LeafUniforms, out: THREE.Vector3) {
-  const yc = -0.62;
-  const z = -u.uCurl.value * yc * yc;
-  const a = u.uTwist.value * yc;
-  return out.set(z * Math.sin(a), yc, z * Math.cos(a)).multiplyScalar(u.uS.value);
-}
+// ---------- the finale's water ----------
+/**
+ * The render's camera (scripts/blender/pond.py) looks down on the water at
+ * VIEW and sees SPAN leaf lengths across the frame's width, centred on the
+ * leaf; the leaf lies at HEADING. The stage shows the frame like CSS
+ * object-fit: cover, so these place the live leaf exactly on the rendered one.
+ */
+const VIEW = THREE.MathUtils.degToRad(38);
+const HEADING = THREE.MathUtils.degToRad(-32);
+const SPAN = 3.81;
+const FRAME_ASPECT = 2; // width / height of the render
+/** On phones (narrow, as below) the stage shows the frame at this many times its width, centred (index.astro's CSS). */
+const NARROW_ZOOM = 1.9;
+/** Until the stage is measured: about where it lands. */
+const AFLOAT0 = { x: 0, y: -0.9, s: 0.5 };
 
 // ---------- leaf material ----------
 /**
@@ -366,64 +359,24 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   const shadow = softShadow();
   scene.add(shadow.mesh);
 
-  // The finale's twig (scripts/blender/twig.py) and the two leaves already on it:
-  // an older one further along, and a young copper one behind the bud.
-  const twig = new THREE.Group();
-  twig.visible = false;
-  scene.add(twig);
-  const nodes: Record<string, THREE.Vector3> = {};
-  new GLTFLoader()
-    .setMeshoptDecoder(MeshoptDecoder)
-    .loadAsync(`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}models/twig.glb`)
-    .then((g) => {
-      g.scene.updateMatrixWorld(true);
-      for (const name of ['node_hero', 'node_b', 'node_young']) {
-        const o = g.scene.getObjectByName(name);
-        if (o) nodes[name] = o.getWorldPosition(new THREE.Vector3());
-      }
-      if (!nodes.node_hero) return;
-      g.scene.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).renderOrder = 2;
-      });
-      twig.add(g.scene);
-      warm();
-    })
-    .catch(() => {}); // no twig: the leaf still hangs in the same place
   // Compile every shader as soon as its textures or model are in, so the leaf's first
-  // appearance and the twig's don't stall a frame. The tick sets visibility again each frame.
+  // appearance doesn't stall a frame. The tick sets visibility again each frame.
   const warm = () => {
     scene.traverse((o) => (o.visible = true));
     renderer.compileAsync(scene, camera).catch(() => {});
   };
   loadLeafTextures().then(() => setTimeout(warm), () => {}); // after every material has switched to them
-  const COPPER = { top: new THREE.Color('#9a4a34'), back: new THREE.Color('#c27a5c'), vein: new THREE.Color('#6e3324'), glow: new THREE.Color('#f2a074') };
-  const kin = [
-    { node: 'node_b', size: 0.7, roll: -2.95, pitch: -0.15, spin: 0.95, phase: 1.3 },
-    { node: 'node_young', size: 0.34, roll: 0.75, pitch: -0.45, spin: -0.3, phase: 2.6 },
-  ].map((k) => {
-    const u = leafUniforms(backPos);
-    const m = leafMaterial(u);
-    usePeepal(m, u);
-    if (k.node === 'node_young') {
-      u.uTop.value.copy(COPPER.top);
-      u.uBack.value.copy(COPPER.back);
-      u.uVein.value.copy(COPPER.vein);
-      u.uGlow.value.copy(COPPER.glow);
-      u.uTrans.value = 0.8;
-      u.uCurl.value = 0.45; // still half-rolled
-    } else applyTone(u, 0.45); // older: deeper, so the leaf that followed the page leads
-    const mesh = new THREE.Mesh(smallGeo, m);
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 2;
-    twig.add(mesh);
-    return { ...k, u, mesh };
-  });
-  const stalk = new THREE.Vector3();
   const node = new THREE.Vector3();
+  // afloat: lying on the water as the camera sees it, at the render's heading
+  const qFree = new THREE.Quaternion();
+  const qFloat = new THREE.Quaternion()
+    .setFromAxisAngle(new THREE.Vector3(1, 0, 0), -(Math.PI / 2 - VIEW))
+    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), HEADING));
 
   // ---------- anchors ----------
   let A = 1;
   let narrow = false;
+  let afloat = { ...AFLOAT0 }; // the rendered leaf's place relative to the finale stage's top, and its size
   let anchors: { y: number; name: string; el: HTMLElement; ref: HTMLElement; track: HTMLElement; light: number }[] = [];
   const measure = () => {
     // markers that aren't laid out (display: none) have no place in the order
@@ -434,10 +387,14 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
       const track = el.dataset.floatTrack ? document.querySelector<HTMLElement>(el.dataset.floatTrack) ?? ref : ref;
       return {
         // a pose is "home" once its section's top reaches 25% of the viewport;
-        // one with its own stage (the finale) arrives once that stage is well in view
+        // one with its own stage (the finale's water) arrives with that stage centred in view,
+        // or as far as the page can scroll
         y:
           ref !== el
-            ? ref.getBoundingClientRect().top + scrollY - innerHeight * 0.45
+            ? Math.min(
+                ref.getBoundingClientRect().top + scrollY - (innerHeight - ref.getBoundingClientRect().height) / 2,
+                document.documentElement.scrollHeight - innerHeight - 2,
+              )
             : el.getBoundingClientRect().top + scrollY - innerHeight * (el.dataset.floatAt ? Number(el.dataset.floatAt) : 0.25),
         name: el.dataset.float!,
         el,
@@ -447,10 +404,15 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
         light: el.classList.contains('tone-light') ? 1 : 0,
       };
     });
+    const fin = anchors.find((x) => x.name === 'finale');
+    if (fin) {
+      const w = waterIn(fin.ref.getBoundingClientRect());
+      afloat = { x: w.x, y: w.y - (1 - (2 * fin.ref.getBoundingClientRect().top) / innerHeight), s: w.s };
+    }
   };
   const placed = (i: number): Pose => {
     const a = anchors[i];
-    const p = poseFor(a?.name ?? 'hidden', A, narrow);
+    const p = poseFor(a?.name ?? 'hidden', A, narrow, afloat);
     if (!a) return p;
     // poses sit relative to their section's top; tracked ones (the plume) are already in screen terms
     p.y += (a.el.dataset.floatTrack ? 0 : 1) - (2 * a.track.getBoundingClientRect().top) / innerHeight;
@@ -461,7 +423,7 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     let i = 0;
     while (i < anchors.length - 1 && y >= anchors[i + 1].y) i++;
     const a = placed(i);
-    // past the end, or hanging from the twig: stay put (the twig scrolls away with its section)
+    // past the end, or afloat: stay put (the water scrolls away with its section)
     if (i >= anchors.length - 1 || y < (anchors[0]?.y ?? 0) || a.rest === 1) return { pose: a, k: 0, fly: 0, turn: i };
     const b = placed(i + 1);
     // Hold beside the headline while the section is read, then glide to the next one.
@@ -471,19 +433,27 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     const fly = Math.sin(Math.PI * k);
     // a falling leaf swings side to side as it drops
     out.x += Math.sin(k * Math.PI * 3) * fly * (narrow ? 0.12 : 0.26);
-    // it settles only at the very end
-    out.rest = a.rest + (b.rest - a.rest) * THREE.MathUtils.smoothstep(k, 0.85, 1);
+    // it settles only at the very end; coming down onto the water it flattens and takes the water's light from halfway
+    out.rest = a.rest + (b.rest - a.rest) * THREE.MathUtils.smoothstep(k, b.rest > a.rest ? 0.5 : 0.85, 1);
     // one turn over per fall, counted up so the angle never jumps back between sections
     return { pose: out, k, fly, turn: i + THREE.MathUtils.smootherstep(k, 0.3, 0.75) };
   };
-  /** The twig's node (where the leaf's stalk meets it) on screen this frame, and the leaf size there; null when the finale is far off screen. */
-  const twigAt = () => {
+  /** The rendered leaf on screen for a stage rect: its centre (world units) and its size (leaf lengths in world units). */
+  const waterIn = (r: DOMRect) => {
+    const fw = narrow ? r.width * NARROW_ZOOM : Math.max(r.width, r.height * FRAME_ASPECT); // phones: zoomed; else object-fit: cover
+    return {
+      x: (((r.left + r.width / 2) / innerWidth) * 2 - 1) * A,
+      y: 1 - (2 * (r.top + r.height / 2)) / innerHeight,
+      s: ((fw / SPAN) * 2) / innerHeight,
+    };
+  };
+  /** The rendered leaf this frame; null when the finale is far off screen. */
+  const waterAt = () => {
     const a = anchors.find((x) => x.name === 'finale');
     if (!a) return null;
     const r = a.ref.getBoundingClientRect();
     if (r.top > innerHeight * 1.2 || r.bottom < -innerHeight * 0.2) return null;
-    const n = twigNode(narrow);
-    return { x: n.x, y: n.y + 1 - (2 * r.top) / innerHeight, s: n.s };
+    return waterIn(r);
   };
   /** Light or dark section under a point (0 dark → 1 bone). */
   const toneAt = (yWorld: number) => {
@@ -534,16 +504,9 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
   const rot = new THREE.Euler(0, 0, 0, 'ZXY'); // roll (screen), pitch (lay back), spin (about the midrib)
   const gust = new THREE.Vector2();
   let gustAmt = 0;
-  const hang = { a: 0, v: 0 }; // swing on its stalk (rad)
-  let wasRest = cur.rest;
-  const ring = (m: { a: number; v: number }, w: number, z: number, dt: number) => {
-    const n = 4;
-    const h = dt / n;
-    for (let i = 0; i < n; i++) {
-      m.v += (-w * w * m.a - 2 * z * w * m.v) * h;
-      m.a += m.v * h;
-    }
-  };
+  // Touchdown hands off to the render: the live leaf fades as the landing starts playing.
+  let landed = false;
+  let handoff = 0; // 0 live → 1 the render has it
   const ease = (dt: number, rate: number) => (opts.still ? 1 : 1 - Math.exp(-dt * rate));
 
   let last = performance.now();
@@ -557,14 +520,22 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     fly += (goal.fly - fly) * e6;
     k += (goal.k - k) * e6;
     turn += (goal.turn - turn) * ease(dt, 4);
-    const tw = twigAt();
-    twig.visible = !!tw && !!nodes.node_hero;
+    const wa = waterAt();
+    if (!landed && wa && cur.rest > 0.985) {
+      landed = true;
+      dispatchEvent(new CustomEvent('leaf:land'));
+    } else if (landed && (cur.rest < 0.9 || !wa)) {
+      landed = false;
+      dispatchEvent(new CustomEvent('leaf:lift'));
+    }
+    handoff += ((landed ? 1 : 0) - handoff) * ease(dt, landed ? 14 : 20);
     const t = opts.still ? 0 : now / 1000;
 
     const scrollV = (scrollY - lastScroll) / dt;
     lastScroll = scrollY;
     const pageV = scrollV * (2 / innerHeight);
-    if (cur.opacity < 0.01 && !twig.visible) {
+    const shown = cur.opacity * (1 - handoff);
+    if (shown < 0.01) {
       // nothing to show: clear once, then skip the draw
       if (leaf.visible) {
         leaf.visible = false;
@@ -572,8 +543,8 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
       }
       return;
     }
-    leaf.visible = cur.opacity >= 0.01;
-    U.uFade.value = cur.opacity;
+    leaf.visible = true;
+    U.uFade.value = shown;
 
     // breeze: a cursor moving fast nearby pushes the leaf away and stirs it up
     if (!opts.still) {
@@ -583,8 +554,6 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
       const near = 1 - THREE.MathUtils.smoothstep(dist / cur.s, 0.6, 2.2);
       const breeze = near * THREE.MathUtils.clamp(Math.hypot(ptr.vx, ptr.vy) * 0.08, 0, 1);
       const push = breeze * (1 - cur.rest);
-      // hanging: a breeze swings it on its stalk, and so does the page moving under it
-      hang.v += (Math.sign(dx || 1) * breeze * 9 - THREE.MathUtils.clamp(pageV, -2.5, 2.5) * 1.2) * cur.rest * dt;
       gustAmt += (push - gustAmt) * (1 - Math.exp(-dt * (push > gustAmt ? 10 : 1.5)));
       const ux = dist > 1e-4 ? dx / dist : 0;
       const uy = dist > 1e-4 ? dy / dist : 0;
@@ -592,15 +561,6 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
       gust.y += (uy * push * cur.s * 0.35 - gust.y) * (1 - Math.exp(-dt * (push > 0.01 ? 8 : 1.2)));
       ptr.vx *= Math.exp(-dt * 6);
       ptr.vy *= Math.exp(-dt * 6);
-      // landing: it catches the twig and swings on its stalk
-      if (cur.rest > 0.6 && wasRest <= 0.6) hang.v -= 1.6;
-      wasRest = cur.rest;
-      ring(hang, 3.6, 0.12, dt);
-      // a stalk only bends so far: it never swings up across the twig
-      if (Math.abs(hang.a) > 0.45) {
-        hang.a = Math.sign(hang.a) * 0.45;
-        hang.v *= -0.3;
-      }
     }
 
     // Orientation. Resting: tip up and to the right, slowly turning to show its form.
@@ -611,15 +571,15 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     const rollRest = -0.55 + 0.07 * Math.sin(t * 0.37);
     const pitchRest = -0.28 + 0.1 * Math.sin(t * 0.55 + 1.0);
     const spinRest = 0.32 * Math.sin(t * 0.23);
-    const sway = opts.still ? 0 : 0.05 * Math.sin(t * 0.7) + 0.02 * Math.sin(t * 1.9);
-    const roll = THREE.MathUtils.lerp(rollRest + 0.85 * swing, HANG.roll + sway + hang.a, cur.rest) + gust.x * 2.5;
-    const pitch = THREE.MathUtils.lerp(THREE.MathUtils.lerp(pitchRest, -1.0, fly), HANG.pitch + 0.06 * Math.sin(t * 0.5), cur.rest);
-    const spin = (spinRest * live + 0.25 * swing) * (1 - fly * 0.5) + 0.3 * Math.sin(t * 0.3) * cur.rest + turn * Math.PI * 2;
+    const roll = rollRest + 0.85 * swing + gust.x * 2.5;
+    const pitch = THREE.MathUtils.lerp(pitchRest, -1.0, fly);
+    const spin = (spinRest + 0.25 * swing) * (1 - fly * 0.5) + turn * Math.PI * 2;
     const er = ease(dt, 5);
     rot.x += (pitch - rot.x) * er;
     rot.y += (spin - rot.y) * er;
     rot.z += (roll - rot.z) * er;
-    leaf.rotation.copy(rot);
+    // coming down onto the water, it turns to lie on it as the render's leaf does
+    leaf.quaternion.copy(qFree.setFromEuler(rot)).slerp(qFloat, THREE.MathUtils.smoothstep(cur.rest, 0, 1));
 
     // Shape: fold, curl and flutter, livelier in flight, in a scroll wind and in a gust; a little flutter while it hangs.
     U.uS.value = cur.s;
@@ -627,36 +587,35 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     U.uFold.value = 0.18 + 0.04 * Math.sin(t * 0.8) * live;
     U.uCurl.value = 0.24 + 0.08 * Math.sin(t * 0.5) * live + 0.1 * fly;
     U.uTwist.value = (0.12 * Math.sin(t * 0.9) + 0.4 * fly * Math.sin(t * 2.3)) * live;
-    U.uFlutter.value = opts.still ? 0 : (0.22 + 0.9 * fly + 0.6 * wind + 1.4 * gustAmt) * live + (0.12 + 0.3 * Math.abs(hang.v)) * cur.rest;
+    U.uFlutter.value = opts.still ? 0 : (0.22 + 0.9 * fly + 0.6 * wind + 1.4 * gustAmt) * live;
+    // the rendered leaf's shape: cupped across the midrib, its base and tip lifted off the water
+    U.uFold.value = THREE.MathUtils.lerp(U.uFold.value, 0.11, cur.rest);
+    U.uCurl.value = THREE.MathUtils.lerp(U.uCurl.value, -0.12, cur.rest);
+    U.uTwist.value *= live;
 
-    // Free, it goes where its pose says; hanging, its stalk's end is pinned to the twig's node exactly
-    // (this frame's, not eased), so it scrolls with the page without lagging behind the twig.
+    // Free, it goes where its pose says; landing, it's pinned to the rendered leaf exactly
+    // (this frame's, not eased), so it scrolls with the page without lagging behind the water.
     leaf.position.set(cur.x + gust.x, cur.y + gust.y, 0);
-    if (tw && cur.rest > 0) {
-      stalkEnd(U, stalk).applyEuler(rot);
-      node.set(tw.x, tw.y, 0).sub(stalk);
-      leaf.position.lerp(node, cur.rest);
-    }
-
-    // The twig, with its node on that point, and the leaves already on it, swaying on their stalks.
-    if (twig.visible && tw) {
-      twig.scale.setScalar(tw.s);
-      twig.position.set(tw.x, tw.y, -0.02).addScaledVector(nodes.node_hero, -tw.s);
-      for (const k of kin) {
-        const at = nodes[k.node];
-        if (!at) continue;
-        k.u.uS.value = k.size; // in twig space, which is scaled by the leaf size
-        k.u.uTime.value = t + k.phase;
-        k.u.uFlutter.value = opts.still ? 0 : 0.12;
-        k.mesh.rotation.set(k.pitch + 0.05 * Math.sin(t * 0.5 + k.phase), k.spin + 0.2 * Math.sin(t * 0.3 + k.phase), k.roll + (opts.still ? 0 : 0.04 * Math.sin(t * 0.7 + k.phase)), 'ZXY');
-        stalkEnd(k.u, stalk).applyEuler(k.mesh.rotation);
-        k.mesh.position.copy(at).sub(stalk);
-      }
+    if (wa && cur.rest > 0) {
+      leaf.position.lerp(node.set(wa.x, wa.y, 0), cur.rest);
+      U.uS.value = THREE.MathUtils.lerp(cur.s, wa.s, cur.rest);
     }
 
     // tone follows the section under the leaf
     tone += (toneAt(cur.y) - tone) * (1 - Math.exp(-dt * 5));
-    applyTone(U, tone);
+    // nearing the water it takes the render's fresh, deep green
+    applyTone(U, THREE.MathUtils.lerp(tone, 1, THREE.MathUtils.smoothstep(cur.rest, 0.3, 1)));
+    // Lying on the water it's in the render's shade: lit from above, not from behind (no glow
+    // through the blade), and far dimmer than the page's studio light.
+    const shade = THREE.MathUtils.smoothstep(cur.rest, 0.3, 1);
+    U.uTrans.value *= 1 - shade;
+    key.intensity = 2.6 * (1 - 0.7 * shade);
+    fill.intensity = 0.7 * (1 - 0.6 * shade);
+    mat.envMapIntensity = 1 - 0.7 * shade;
+    // wet: no velvet sheen, a sharp clear coat (sheen stays just above 0 so the shader isn't rebuilt)
+    mat.sheen = Math.max(0.01, 0.4 * (1 - shade));
+    mat.clearcoat = THREE.MathUtils.lerp(0.35, 0.6, shade);
+    mat.clearcoatRoughness = THREE.MathUtils.lerp(0.35, 0.06, shade);
 
     // Small leaves: further ones drift slower; scrolling sweeps them past.
     for (const m of motes) {
@@ -683,7 +642,8 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
     shadow.mesh.position.set(sx, sy, -0.4);
     shadow.mesh.rotation.z = rot.z;
     shadow.mesh.scale.set(cur.s * (0.75 + 0.25 * lift - 0.05 * cur.rest), cur.s * (1.25 + 0.15 * lift - 0.1 * cur.rest), 1);
-    shadow.uniforms.uA.value = THREE.MathUtils.lerp((0.1 + 0.16 * tone) * (1 - 0.7 * lift), 0.2, cur.rest) * cur.opacity;
+    // over the water the render has the leaf's own reflection and shade: no page shadow
+    shadow.uniforms.uA.value = (0.1 + 0.16 * tone) * (1 - 0.7 * lift) * (1 - cur.rest) * cur.opacity;
 
     renderer.render(scene, camera);
   };
@@ -704,13 +664,6 @@ export function createLeaf(canvas: HTMLCanvasElement, opts: { still: boolean }) 
       mat.dispose();
       smallGeo.dispose();
       motes.forEach((m) => (m.mesh.material as THREE.Material).dispose());
-      kin.forEach((k) => (k.mesh.material as THREE.Material).dispose());
-      twig.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
-      });
       shadow.dispose();
       env.dispose();
       renderer.dispose();
