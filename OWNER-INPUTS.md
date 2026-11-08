@@ -19,7 +19,7 @@ These come from shaktinovaprojects.com and the company profile video:
 ### Identity
 - [ ] Logo (SVG preferred). The header uses a text wordmark for now.
 - [ ] Confirm the domain (`astro.config.mjs` → `site`)
-- [ ] Which contact channels to publish (`src/content/site.ts` → `contact`). The profile lists info@shaktinovaprojects.com, compositeworks22@gmail.com, +91 98338 47341 and Mumbai. You didn't pick these for reuse, so none are shown yet.
+- [x] Contact channels (`src/content/site.ts` → `contact`): compositeworks22@gmail.com and +91 98338 47341, confirmed 2026-11-09. WhatsApp on the same number and the address "Mumbai, India" confirmed too. Still open (later): an endpoint so the inquiry form sends directly (`PUBLIC_INQUIRY_ENDPOINT`; until then it opens the visitor's email, filled in).
 
 ### The 3D demo
 - [ ] Confirm the partner manufacturers use **filament winding** for FRP vessels. The hero is labelled "illustrative", but it should still match real practice.

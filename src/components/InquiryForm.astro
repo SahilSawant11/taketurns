@@ -1,9 +1,11 @@
 ---
 import { solutions, applications } from '../content/catalog';
+import { site } from '../content/site';
+const email = site.contact.email;
 
 const steps = ['Contact', 'Interest', 'Project', 'Technical', 'Review'];
 ---
-<div class="iq" data-iq>
+<div class="iq" data-iq data-email={email ?? undefined}>
   <ol class="iq__steps" aria-label="Form progress">
     {steps.map((s, i) => (
       <li data-step-ind={i} aria-current={i === 0 ? 'step' : undefined}>
@@ -152,12 +154,15 @@ const steps = ['Contact', 'Interest', 'Project', 'Technical', 'Review'];
   </div>
 
   <div class="iq__done" data-done="not-configured" hidden tabindex="-1">
-    <p class="eyebrow">Not sent</p>
-    <h2>Online sending isn't set up yet.</h2>
-    <p class="muted">Nothing was sent. Copy your inquiry below and email it to the team directly. Your draft stays saved on this device.</p>
+    <p class="eyebrow">{email ? 'One last step' : 'Not sent'}</p>
+    <h2>{email ? 'Send it from your email.' : "Online sending isn't set up yet."}</h2>
+    <p class="muted">{email
+      ? <>Nothing has been sent yet. The button below opens your email with the inquiry written out, addressed to <a href={`mailto:${email}`}>{email}</a>. Or copy it. Your draft stays saved on this device.</>
+      : 'Nothing was sent. Copy your inquiry below and email it to the team directly. Your draft stays saved on this device.'}</p>
     <pre class="iq__copy" data-copy-text></pre>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <button type="button" class="btn" data-copy>Copy inquiry</button>
+      {email && <a class="btn" data-mailto href={`mailto:${email}`}>Email this inquiry <span class="arrow" aria-hidden="true">→</span></a>}
+      <button type="button" class={email ? 'btn btn--ghost' : 'btn'} data-copy>Copy inquiry</button>
       <button type="button" class="btn btn--ghost" data-edit>Edit inquiry</button>
     </div>
   </div>
@@ -385,7 +390,18 @@ const steps = ['Contact', 'Interest', 'Project', 'Technical', 'Review'];
     done.hidden = false;
     done.focus();
     if (res.status === 'sent') { try { localStorage.removeItem(KEY); } catch {} }
-    else root.querySelector('[data-copy-text]')!.textContent = asText();
+    else {
+      const text = asText();
+      root.querySelector('[data-copy-text]')!.textContent = text;
+      // the inquiry, written out in the visitor's own email, ready to send to us
+      const to = root.dataset.email;
+      const mail = root.querySelector<HTMLAnchorElement>('[data-mailto]');
+      if (to && mail) {
+        const who = d.company || d.name || '';
+        const subject = `Project inquiry${who ? ` from ${who}` : ''}`;
+        mail.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+      }
+    }
   });
 
   root.querySelector('[data-copy]')?.addEventListener('click', async (e) => {

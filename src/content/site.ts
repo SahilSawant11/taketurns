@@ -13,12 +13,11 @@ export const site = {
   yearsExperience: '13+',
   founder: { name: 'Sushil Naikwadi', role: 'Founder' },
   contact: {
-    // TODO(owner): confirm which channels to publish. The profile video lists
-    // info@shaktinovaprojects.com, compositeworks22@gmail.com and +91 98338 47341, Mumbai.
-    email: null as string | null,
-    phone: null as string | null,
-    whatsapp: null as string | null, // international format, digits only, e.g. "919800000000"
-    address: null as string | null,
+    // Confirmed by the owner (2026-11-09). Phone shown in Indian grouping; the link strips the spaces.
+    email: 'compositeworks22@gmail.com' as string | null,
+    phone: '+91 98338 47341' as string | null,
+    whatsapp: '919833847341' as string | null, // international format, digits only
+    address: 'Mumbai, India' as string | null,
   },
 };
 
