@@ -1,0 +1,15 @@
+# Cloudflare Pages headers. Built assets have hashed names: cache them for a year.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+# Models, renders, video and the finale's clips keep their names between builds: a week.
+/models/*
+  Cache-Control: public, max-age=604800
+/renders/*
+  Cache-Control: public, max-age=604800
+/video/*
+  Cache-Control: public, max-age=604800
+/finale/*
+  Cache-Control: public, max-age=604800
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

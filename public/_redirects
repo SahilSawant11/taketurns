@@ -1,0 +1,25 @@
+# Cloudflare Pages redirects: the old WordPress site's addresses (shaktinovaprojects.com
+# until Nov 2026), sent to their nearest page here so old links and bookmarks still land.
+/industries          /applications/   301
+/industries/         /applications/   301
+/service             /solutions/      301
+/service/            /solutions/      301
+/blog                /resources/      301
+/blog/               /resources/      301
+/customer-cabinet    /contact/        301
+/customer-cabinet/   /contact/        301
+/form                /contact/        301
+/form/*              /contact/        301
+# WordPress leftovers (sample posts, theme pages, admin) go to the home page
+/hello-world/        /                301
+/sample-page/        /                301
+/post-1/             /                301
+/post-2/             /                301
+/post-3/             /                301
+/elementor-page-806/ /                301
+/category/*          /                301
+/feed/               /                301
+/wp-admin/*          /                301
+/wp-login.php        /                301
+/sitemap_index.xml   /sitemap-index.xml 301
+/wp-sitemap.xml      /sitemap-index.xml 301
