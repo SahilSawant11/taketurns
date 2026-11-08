@@ -1,0 +1,53 @@
+---
+import Base from '../layouts/Base.astro';
+import VendorForm from '../components/VendorForm.astro';
+import { site } from '../content/site';
+const { email, phone } = site.contact;
+---
+<Base title="Become a manufacturing partner" description="Register as a specialist vendor or manufacturing partner for Shaktinova Projects: FRP, linings, glass-lined steel, stainless and the services around them.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Partners</p>
+      <h1>Build with us.</h1>
+      <p class="lede">
+        We engineer the solution and run the project. Qualified manufacturers and specialists build it. If you make, line,
+        test or install equipment for corrosive and hygienic duty, register here and tell us what you do best.
+      </p>
+    </div>
+  </section>
+  <section class="section" style="padding-top:0">
+    <div class="wrap layout">
+      <VendorForm />
+      <aside class="side stack" style="--space:1.4rem" aria-label="About partnering with us">
+        <div class="stack" style="--space:.6rem">
+          <h2>What we look at</h2>
+          <ul class="muted">
+            <li>The processes and materials you're best at</li>
+            <li>Your quality system and certifications</li>
+            <li>Test and inspection records</li>
+            <li>Capacity and lead times</li>
+            <li>Work you've delivered for similar duty</li>
+          </ul>
+        </div>
+        <div class="stack" style="--space:.6rem">
+          <h2>What happens next</h2>
+          <p class="muted">We read every registration. When a project fits what you do, we get in touch to talk through it.</p>
+        </div>
+        {(email || phone) && (
+          <div class="stack" style="--space:.6rem">
+            <h2>Questions first?</h2>
+            {email && <p><a href={`mailto:${email}`}>{email}</a></p>}
+            {phone && <p><a href={`tel:${phone.replace(/\s/g, '')}`}>{phone}</a></p>}
+          </div>
+        )}
+      </aside>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .layout { display: grid; gap: 40px; grid-template-columns: minmax(0, 1fr) 280px; align-items: start; }
+  .side h2 { font-size: 1.05rem; }
+  .side ul { padding-left: 18px; display: grid; gap: 4px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+</style>

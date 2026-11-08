@@ -10,10 +10,33 @@ interface Props {
   description?: string;
   /** 'dark' = cinematic home styling; inner pages stay light for scanning. */
   theme?: 'light' | 'dark';
+  /** keep the page out of search (tools like the QR print sheet) */
+  noindex?: boolean;
 }
-const { title, description = site.description, theme = 'light' } = Astro.props;
+const { title, description = site.description, theme = 'light', noindex = false } = Astro.props;
 const fullTitle = title ? `${title} · ${displayName()}` : `${displayName()} · FRP, glass-lined steel and stainless solutions`;
 const canonical = new URL(Astro.url.pathname, Astro.site);
+const shareImage = new URL('/og.jpg', Astro.site);
+const { email, phone, address } = site.contact;
+// Structured data (schema.org): who the company is, for search results and link previews.
+const organization = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  '@id': new URL('/#organization', Astro.site).href,
+  name: displayName(),
+  url: new URL('/', Astro.site).href,
+  logo: new URL('/favicon.svg', Astro.site).href,
+  image: shareImage.href,
+  description: site.description,
+  slogan: site.tagline,
+  ...(email && { email }),
+  ...(phone && { telephone: phone.replace(/\s/g, '') }),
+  ...(address && { address: { '@type': 'PostalAddress', addressLocality: address.split(',')[0].trim(), addressCountry: 'IN' } }),
+  founder: { '@type': 'Person', name: site.founder.name },
+  ...((email || phone) && {
+    contactPoint: { '@type': 'ContactPoint', contactType: 'sales', areaServed: 'IN', ...(email && { email }), ...(phone && { telephone: phone.replace(/\s/g, '') }) },
+  }),
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -23,9 +46,18 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={displayName()} />
+    <meta property="og:image" content={shareImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A peepal leaf afloat on still, dark water" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json" set:html={JSON.stringify(organization)} />
     <meta name="theme-color" content={theme === 'dark' ? '#0d100f' : '#d8d1c3'} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -1,8 +1,12 @@
 import { defineConfig } from 'astro/config';
+import sitemap from '@astrojs/sitemap';
 
-// TODO(owner): set the production domain once confirmed.
+// The production domain: canonical URLs, the sitemap and structured data all build from it.
+// The company's current domain (shaktinovaprojects.com); change it here if the new site launches elsewhere.
 export default defineConfig({
-  site: 'https://example.com',
+  site: 'https://www.shaktinovaprojects.com',
+  // every public page; not the QR redirects (/go/), the QR print sheet (/qr/) or dev tools
+  integrations: [sitemap({ filter: (url) => !/\/(go|qr|dev)\//.test(url) })],
   vite: {
     // Pre-bundle every dependency the pages import, up front. Found one page at a time instead,
     // a new import leaves the dev server's cache "outdated" (504s), and the page script that

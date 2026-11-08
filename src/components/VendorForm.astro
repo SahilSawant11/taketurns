@@ -1,0 +1,110 @@
+---
+/** Specialist vendor registration (/partners/): its own three steps in the shared step-form shell. */
+import StepForm from './StepForm.astro';
+
+const categories: [string, string][] = [
+  ['frp', 'FRP / GRP fabrication'],
+  ['lining', 'Dual laminate & thermoplastic lining'],
+  ['thermoplastic', 'Thermoplastic (PP, HDPE, PVDF) fabrication'],
+  ['gls', 'Glass-lined steel'],
+  ['ss', 'Stainless steel fabrication'],
+  ['materials', 'Resins, glass & raw materials'],
+  ['valves', 'Valves, pumps & instrumentation'],
+  ['site', 'Installation & site services'],
+  ['testing', 'Testing, inspection & NDT'],
+  ['design', 'Design & engineering'],
+  ['other', 'Other'],
+];
+---
+<StepForm
+  steps={['Company', 'Capabilities', 'Credentials', 'Review']}
+  draftKey="vendor-draft-v1"
+  formType="vendor"
+  noun="registration"
+  subject="Vendor registration"
+  submitLabel="Send registration"
+  consent="I agree to be contacted about this registration."
+  sentTitle="Thanks. Your registration is with the team."
+  sentBody="We review every registration and get in touch when a project fits what you do."
+>
+  <fieldset data-step="0">
+    <legend>Who are you?</legend>
+    <div class="f2">
+      <label class="fld">Company name <span aria-hidden="true">*</span>
+        <input name="company" autocomplete="organization" required />
+      </label>
+      <label class="fld">Contact person <span aria-hidden="true">*</span>
+        <input name="name" autocomplete="name" required />
+      </label>
+      <label class="fld">Designation <span class="opt">optional</span>
+        <input name="designation" autocomplete="organization-title" placeholder="e.g. director, sales head" />
+      </label>
+      <label class="fld">Email <span aria-hidden="true">*</span>
+        <input name="email" type="email" autocomplete="email" required />
+      </label>
+      <label class="fld">Phone <span aria-hidden="true">*</span>
+        <input name="phone" type="tel" autocomplete="tel" required />
+      </label>
+      <label class="fld">Website <span class="opt">optional</span>
+        <input name="website" type="url" autocomplete="url" placeholder="company.com" />
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset data-step="1" hidden>
+    <legend>What do you make or do?</legend>
+    <div class="fld">
+      <span id="cat-l">Category <span aria-hidden="true">*</span> <span class="opt">choose all that apply</span></span>
+      <div class="choices" role="group" aria-labelledby="cat-l" data-required>
+        {categories.map(([v, l]) => (
+          <label class="choice"><input type="checkbox" name="category" value={v} /> {l}</label>
+        ))}
+      </div>
+    </div>
+    <label class="fld">Technical specialisation <span aria-hidden="true">*</span>
+      <textarea name="specialisation" rows="4" required placeholder="What you're best at: processes, materials, sizes, the duties you've built for."></textarea>
+    </label>
+    <div class="f2">
+      <label class="fld">Works location <span aria-hidden="true">*</span>
+        <input name="location" required placeholder="City, state" />
+      </label>
+      <label class="fld">Service coverage <span aria-hidden="true">*</span>
+        <select name="coverage" required>
+          <option value="">Choose one</option>
+          <option>Local (city / region)</option>
+          <option>State-wide</option>
+          <option>Across India</option>
+          <option>India and abroad</option>
+        </select>
+      </label>
+      <label class="fld">Capacity <span class="opt">optional</span>
+        <input name="capacity" placeholder="e.g. vessels up to Ø4 m, 40 t a month" />
+      </label>
+      <label class="fld">Years in business <span class="opt">optional</span>
+        <input name="years" inputmode="numeric" placeholder="e.g. 15" />
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset data-step="2" hidden>
+    <legend>Credentials and documents.</legend>
+    <p class="muted hint">Links are fine for now: a website page, Google Drive or Dropbox. We'll ask for anything else when we're in touch.</p>
+    <div class="f2">
+      <label class="fld">Certifications <span class="opt">optional</span>
+        <input name="certifications" placeholder="e.g. ISO 9001, ISO 14001, ASME, PED" />
+      </label>
+      <label class="fld">Key clients or projects <span class="opt">optional</span>
+        <input name="references" placeholder="Names you're able to share" />
+      </label>
+      <label class="fld">Company profile <span class="opt">optional, a link</span>
+        <input name="profile" type="url" placeholder="drive.google.com/…" />
+      </label>
+      <label class="fld">Product catalogue <span class="opt">optional, a link</span>
+        <input name="catalogue" type="url" placeholder="company.com/catalogue.pdf" />
+      </label>
+    </div>
+    <label class="fld">Anything else
+      <textarea name="notes" rows="3" placeholder="Test facilities, approvals with end users, anything that sets you apart."></textarea>
+    </label>
+  </fieldset>
+</StepForm>

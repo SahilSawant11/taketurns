@@ -1,0 +1,67 @@
+---
+/**
+ * The QR print sheet: every code from src/content/qr.ts, generated at build
+ * time, with SVG (for print) and PNG (for documents and slides) downloads.
+ * Not linked from the site and kept out of search; share the link with
+ * whoever designs the brochures.
+ */
+import QRCode from 'qrcode';
+import Base from '../layouts/Base.astro';
+import { qrCodes } from '../content/qr';
+
+const INK = '#0d100f';
+const codes = await Promise.all(
+  qrCodes.map(async (q) => {
+    const url = new URL(`/go/${q.slug}/`, Astro.site).href;
+    const opts = { errorCorrectionLevel: 'M' as const, margin: 4, color: { dark: INK, light: '#ffffff' } };
+    const svg = await QRCode.toString(url, { ...opts, type: 'svg' });
+    const png = await QRCode.toDataURL(url, { ...opts, width: 1200 });
+    return { ...q, url, svg, svgHref: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, png };
+  }),
+);
+---
+<Base title="QR codes" description="QR codes for print." noindex>
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">For print</p>
+      <h1>QR codes.</h1>
+      <p class="lede">
+        For brochures, business cards, presentations and exhibition stands. Each code opens a short link that stays the
+        same, so a printed code can be pointed at a different page later without reprinting it. Use the SVG for print and
+        the PNG for documents and slides. Print at 2 cm across or larger.
+      </p>
+    </div>
+  </section>
+  <section class="section" style="padding-top:0">
+    <div class="wrap qr">
+      {codes.map((c) => (
+        <figure class="qr__card">
+          <div class="qr__code" set:html={c.svg} />
+          <figcaption class="stack" style="--space:.5rem">
+            <h2>{c.label}</h2>
+            <p class="muted">{c.note}</p>
+            <p class="mono qr__url">{c.url.replace(/^https?:\/\//, '')}</p>
+            <p class="qr__dl">
+              <a class="btn btn--ghost" href={c.svgHref} download={`shaktinova-qr-${c.slug}.svg`}>SVG</a>
+              <a class="btn btn--ghost" href={c.png} download={`shaktinova-qr-${c.slug}.png`}>PNG</a>
+            </p>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .qr { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+  .qr__card { margin: 0; background: var(--card); border-top: 1px solid var(--ink); padding: 24px; display: grid; gap: 20px; }
+  .qr__code { background: #fff; aspect-ratio: 1; }
+  .qr__code :global(svg) { display: block; width: 100%; height: 100%; }
+  .qr__card h2 { font-size: var(--step-1); }
+  .qr__url { font-size: .8rem; overflow-wrap: anywhere; }
+  .qr__dl { display: flex; gap: 10px; }
+  @media print {
+    .qr__dl { display: none; }
+    .qr__card { break-inside: avoid; }
+  }
+</style>

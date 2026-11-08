@@ -1,0 +1,138 @@
+---
+/**
+ * The shell of a multi-step form (src/lib/stepForm.ts): the step bar, the
+ * review step with consent, the buttons, and what shows after sending. The
+ * form's own steps come in through the slot, one fieldset[data-step] each,
+ * numbered from 0; the review is added as the last step.
+ *
+ * Styles are global but scoped under .iq, since the fields arrive through the slot.
+ */
+import { site } from '../content/site';
+
+interface Props {
+  /** step names, the review last */
+  steps: string[];
+  /** localStorage key for the draft */
+  draftKey: string;
+  /** sent with the answers so they can be routed: "project", "vendor" */
+  formType: string;
+  /** what it is in messages: "inquiry", "registration" */
+  noun: string;
+  /** the fallback email's subject, e.g. "Project inquiry" */
+  subject: string;
+  submitLabel: string;
+  consent: string;
+  sentTitle: string;
+  sentBody: string;
+}
+const { steps, draftKey, formType, noun, subject, submitLabel, consent, sentTitle, sentBody } = Astro.props;
+const email = site.contact.email;
+const last = steps.length - 1;
+---
+<div class="iq" data-iq data-key={draftKey} data-noun={noun} data-subject={subject} data-email={email ?? undefined} style={`--n:${steps.length}`}>
+  <ol class="iq__steps" aria-label="Form progress">
+    {steps.map((s, i) => (
+      <li data-step-ind={i} aria-current={i === 0 ? 'step' : undefined}>
+        <span class="iq__dot mono">{i + 1}</span><span class="iq__lbl">{s}</span>
+      </li>
+    ))}
+  </ol>
+
+  <form novalidate>
+    <p class="iq__status visually-hidden" aria-live="polite"></p>
+    <input type="hidden" name="formType" value={formType} />
+
+    <slot />
+
+    <fieldset data-step={last} hidden>
+      <legend>Check and send.</legend>
+      <dl class="review" data-review></dl>
+      <label class="check"><input type="checkbox" name="consent" value="yes" required /> {consent} <span aria-hidden="true">*</span></label>
+    </fieldset>
+
+    <div class="iq__err" role="alert" hidden></div>
+
+    <div class="iq__nav">
+      <button type="button" class="btn btn--ghost" data-back hidden>← Back</button>
+      <button type="button" class="btn" data-next>Continue <span class="arrow" aria-hidden="true">→</span></button>
+      <button type="submit" class="btn" data-submit hidden>{submitLabel}</button>
+      <span class="iq__saved muted mono" aria-hidden="true">Draft saved on this device</span>
+    </div>
+  </form>
+
+  <div class="iq__done" data-done="sent" hidden tabindex="-1">
+    <p class="eyebrow">Sent</p>
+    <h2>{sentTitle}</h2>
+    <p class="muted">{sentBody}</p>
+    <a class="btn btn--ghost" href="/">Back to home</a>
+  </div>
+
+  <div class="iq__done" data-done="not-configured" hidden tabindex="-1">
+    <p class="eyebrow">{email ? 'One last step' : 'Not sent'}</p>
+    <h2>{email ? 'Send it from your email.' : "Online sending isn't set up yet."}</h2>
+    <p class="muted">{email
+      ? <>Nothing has been sent yet. The button below opens your email with your {noun} written out, addressed to <a href={`mailto:${email}`}>{email}</a>. Or copy it. Your draft stays saved on this device.</>
+      : `Nothing was sent. Copy your ${noun} below and email it to the team directly. Your draft stays saved on this device.`}</p>
+    <pre class="iq__copy" data-copy-text></pre>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      {email && <a class="btn" data-mailto href={`mailto:${email}`}>Email this {noun} <span class="arrow" aria-hidden="true">→</span></a>}
+      <button type="button" class={email ? 'btn btn--ghost' : 'btn'} data-copy>Copy {noun}</button>
+      <button type="button" class="btn btn--ghost" data-edit>Edit {noun}</button>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+
+  .iq { background: var(--card); border-top: 1px solid var(--ink); padding: clamp(20px, 3.5vw, 44px); }
+  .iq__steps { list-style: none; padding: 0; margin: 0 0 32px; display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 6px; }
+  .iq__steps li { display: grid; gap: 8px; font-size: 0.7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 10px; border-top: 2px solid var(--line); }
+  .iq__steps li.is-done { border-color: var(--ink-2); }
+  .iq__steps li[aria-current='step'] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+  .iq__dot { display: none; }
+  @media (max-width: 560px) { .iq__lbl { display: none; } .iq__dot { display: inline; } }
+
+  .iq fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 22px; }
+  .iq legend { font-size: var(--step-2); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 22px; padding: 0; }
+  .iq .hint { margin-top: -10px; }
+  .iq .f2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+  .iq .fld { display: block; font-weight: 500; font-size: 0.95rem; }
+  .iq .fld > input, .iq .fld > select, .iq .fld > textarea, .iq .fld > .choices { margin-top: 8px; }
+  .iq .opt { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+  .iq input:not([type='radio'], [type='checkbox']), .iq select, .iq textarea {
+    display: block; width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--line); border-bottom-color: var(--ink);
+    border-radius: 0; background: rgba(255,255,255,.45); font-weight: 400;
+  }
+  .iq textarea { resize: vertical; }
+  .iq input:focus-visible, .iq select:focus-visible, .iq textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+  .iq [aria-invalid='true'] { border-color: var(--danger) !important; background: #fdf4f3 !important; }
+  .iq .field-err { color: var(--danger); font-size: 0.85rem; font-weight: 500; margin: 0; }
+  .iq .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .iq .choice { display: inline-flex; gap: 10px; align-items: center; padding: 10px 16px; min-height: 48px; border: 1px solid var(--line); cursor: pointer; font-weight: 400; background: rgba(255,255,255,.45); }
+  .iq .choice:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  .iq .choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .iq .choice input { accent-color: var(--ink); margin: 0; }
+  .iq .check { display: flex; gap: 12px; align-items: flex-start; font-size: 0.95rem; cursor: pointer; }
+  .iq .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ink); flex: none; }
+
+  .iq .review { margin: 0; display: grid; grid-template-columns: minmax(0, 200px) 1fr; border-top: 1px solid var(--line); }
+  .iq .review dt, .iq .review dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .iq .review dt { color: var(--muted); font-size: 0.9rem; padding-right: 16px; }
+  .iq .review dd { overflow-wrap: anywhere; }
+  .iq .review .edit { grid-column: 1 / -1; padding: 20px 0 8px; border: 0; background: none; text-align: left; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; min-height: 44px; }
+  .iq .review .edit span { font-weight: 400; text-decoration: underline; color: var(--ink-2); }
+
+  .iq__err { margin-top: 24px; padding: 12px 14px; border-radius: var(--radius); background: #fdf4f3; color: var(--danger); border: 1px solid #e7b9b4; }
+  .iq__nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .iq__saved { margin-left: auto; font-size: 0.75rem; opacity: 0; transition: opacity .3s; }
+  .iq__saved.is-on { opacity: 1; }
+  .iq__done { display: grid; gap: 16px; justify-items: start; }
+  .iq__done h2 { font-size: var(--step-2); }
+  .iq__done:focus { outline: none; }
+  .iq__copy { width: 100%; max-height: 260px; overflow: auto; background: var(--paper-2); padding: 16px; border-radius: var(--radius); font-family: var(--mono); font-size: 0.82rem; white-space: pre-wrap; margin: 0; }
+</style>
+
+<script>
+  import { initStepForm } from '../lib/stepForm';
+  document.querySelectorAll<HTMLElement>('[data-iq]').forEach((el) => initStepForm(el));
+</script>

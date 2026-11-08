@@ -1,0 +1,28 @@
+---
+/**
+ * The short links the printed QR codes encode (src/content/qr.ts). Static
+ * redirects: they work on any host, and the destination can change without
+ * reprinting a code.
+ */
+import { qrCodes } from '../../content/qr';
+
+export function getStaticPaths() {
+  return qrCodes.map((q) => ({ params: { slug: q.slug }, props: { to: q.to, label: q.label } }));
+}
+const { to, label } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content={`0; url=${to}`} />
+    <link rel="canonical" href={new URL(to, Astro.site)} />
+    <title>{label} · Shaktinova Projects</title>
+    <script is:inline define:vars={{ to }}>location.replace(to);</script>
+  </head>
+  <body style="font-family: system-ui, sans-serif; padding: 24px">
+    <p><a href={to}>Continue to {label}</a></p>
+  </body>
+</html>
